@@ -23,8 +23,9 @@ const SPECIALIZED = new Set([
   "xiaomi-tokenplan", "mimo-free",
 ]);
 
-// Per-process / per-request values: kimi's random device name, minimax's session UUID.
-const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id"]);
+// Per-process / per-request values: kimi's random device name, minimax's session
+// UUID, minimax's timezone offset (runner TZ differs from the snapshot machine).
+const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id", "x-mavis-timezone-offset"]);
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
