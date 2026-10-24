@@ -22,6 +22,7 @@ import KeyAccessControls from "./components/KeyAccessControls";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
@@ -248,6 +249,7 @@ export default function APIPageClient({ machineId }) {
 
   const fetchData = async () => {
     try {
+      setLoadError(false);
       let keysFetchOk = true;
       const fetchKeys = async () => {
         const res = await fetch("/api/keys");
@@ -257,6 +259,11 @@ export default function APIPageClient({ machineId }) {
       };
 
       let existing = await fetchKeys();
+      // A failed keys GET must not render as "no keys" — surface a retry banner.
+      if (!keysFetchOk) {
+        setLoadError(true);
+        return;
+      }
       // Auto-provision a default key ONLY on a confirmed empty list. A failed
       // GET must not trigger a write (it used to create a fresh "Default Key"
       // on every transient error).
@@ -273,6 +280,7 @@ export default function APIPageClient({ machineId }) {
       setKeys(existing);
     } catch (error) {
       console.log("Error fetching data:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -725,6 +733,26 @@ export default function APIPageClient({ machineId }) {
       <div className="flex flex-col gap-8">
         <CardSkeleton />
         <CardSkeleton />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-6 py-12 text-center"
+      >
+        <span className="material-symbols-outlined text-[32px] text-red-500">
+          cloud_off
+        </span>
+        <p className="text-sm font-medium text-text-main">Failed to load API keys</p>
+        <p className="text-xs text-text-muted">
+          The server didn&apos;t respond. Check that 9router is running, then try again.
+        </p>
+        <Button icon="refresh" onClick={() => { setLoading(true); fetchData(); }} className="mt-2">
+          Retry
+        </Button>
       </div>
     );
   }

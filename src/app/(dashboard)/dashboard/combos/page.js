@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -8,6 +9,7 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import { Card, Button, Modal, Input, CardSkeleton, ModelSelectModal, ConfirmModal, CapacityBadges, Select, Toggle, Badge, SmartPolicyModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import { useNotificationStore } from "@/store/notificationStore";
 import { aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { resolveProviderId, AI_PROVIDERS } from "@/shared/constants/providers";
 
@@ -82,6 +84,7 @@ export default function CombosPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { copied, copy } = useCopyToClipboard();
+  const notify = useNotificationStore();
 
   const fetchData = useCallback(async () => {
     try {
@@ -170,7 +173,7 @@ export default function CombosPage() {
       const previewRes = await fetch(`/api/combos/presets?source=${source}`);
       const preview = await previewRes.json();
       if (!previewRes.ok) {
-        alert(preview.error || `Failed to preview ${label}`);
+        notify.error(preview.error || `Failed to preview ${label}`);
         return;
       }
 
@@ -179,12 +182,12 @@ export default function CombosPage() {
       const total = (preview.items || []).length;
 
       if (total === 0) {
-        alert(`No ${label} models available to generate.`);
+        notify.warning(`No ${label} models available to generate.`);
         return;
       }
 
       if (toCreate === 0) {
-        alert(`All ${total} ${label} combos already exist. Nothing to create.`);
+        notify.warning(`All ${total} ${label} combos already exist. Nothing to create.`);
         return;
       }
 
@@ -203,21 +206,21 @@ export default function CombosPage() {
             });
             const data = await res.json();
             if (!res.ok) {
-              alert(data.error || `Failed to generate ${label}`);
+              notify.error(data.error || `Failed to generate ${label}`);
               return;
             }
             await fetchData();
             setConfirmState(null);
           } catch (error) {
             console.log(`Error generating ${label}:`, error);
-            alert(`Failed to generate ${label}`);
+            notify.error(`Failed to generate ${label}`);
             setConfirmState((prev) => prev ? { ...prev, loading: false } : null);
           }
         },
       });
     } catch (error) {
       console.log(`Error previewing ${label}:`, error);
-      alert(`Failed to preview ${label}`);
+      notify.error(`Failed to preview ${label}`);
     } finally {
       setPresetLoading(null);
     }
@@ -248,7 +251,7 @@ export default function CombosPage() {
         setShowCreateModal(false);
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to create combo");
+        notify.error(err.error || "Failed to create combo");
       }
     } catch (error) {
       console.log("Error creating combo:", error);
@@ -267,7 +270,7 @@ export default function CombosPage() {
         setEditingCombo(null);
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to update combo");
+        notify.error(err.error || "Failed to update combo");
       }
     } catch (error) {
       console.log("Error updating combo:", error);
@@ -336,10 +339,10 @@ export default function CombosPage() {
           setCombos((prev) => prev.filter((c) => !ids.includes(c.id)));
           clearSelection();
           setConfirmState(null);
-          if (failed > 0) alert(`Deleted with ${failed} failure${failed === 1 ? "" : "s"}.`);
+          if (failed > 0) notify.warning(`Deleted with ${failed} failure${failed === 1 ? "" : "s"}.`);
         } catch (error) {
           console.log("Error bulk deleting combos:", error);
-          alert("Failed to delete selected combos");
+          notify.error("Failed to delete selected combos");
           setConfirmState((prev) => prev ? { ...prev, loading: false } : null);
         } finally {
           setBulkBusy(false);
@@ -385,7 +388,7 @@ export default function CombosPage() {
       await persistComboStrategies(updated);
     } catch (error) {
       console.log("Error bulk updating combo strategy:", error);
-      alert("Failed to update strategy for selected combos");
+      notify.error("Failed to update strategy for selected combos");
     } finally {
       setBulkBusy(false);
     }
