@@ -1,12 +1,25 @@
 # Unreleased
 
+## Security
+- **Usage stats**: `byApiKey` response keys no longer carry raw API keys — buckets use the key's registered id (or a deterministic hash for unknown keys), fixing an AUDIT-002 regression while keeping same-masked-prefix team keys in separate buckets
+- **Dashboard guard**: the four serverless relay deploy routes (`netlify/vercel/cloudflare/deno-deploy`), which receive third-party platform tokens, are now ALWAYS_PROTECTED (require auth even with `requireLogin=false`); proxy-pool rows show an "unsealed" badge for relays deployed before the shared-secret update
+- **OAuth**: local callback proxies for Codex and xAI now reject cross-origin requests (`isLoopbackOrigin` guard, matching trae/windsurf/zed)
+
+## Tests
+- **Full unit suite is green again locally and now runs in CI** (new `unit-tests` job): the ~100-suite `@/`//`open-sse/…` resolution failure class is gone, all known-fails repaired against current intended behavior (combo 400 request-scoped advance + identity fast-path restored in `reorderByCapabilities`, cursor auto-import rewritten to the staged-extraction design, codebuddy backoff, headroom #2132/#4070 contract, openai→claude buffered tool args, translator content-array collapse rules, opencode session forwarding covers the thinking-downgrade retry), golden header snapshots refreshed, obsolete cloud-adapter test removed, `lowdb` dev-dep for the db benchmark, and the MiMo live test is properly gated behind `RUN_LIVE=1`
+
 ## UI/UX
+- **Usage**: "Cache Hit Rate" overview card — cached share of the period's input tokens
+- **Endpoint page**: failed keys fetch renders an error state with Retry instead of an empty list
+- **Combos page**: raw `alert()` calls replaced with the toast notification system
+- **Dashboard**: Header no longer remounts on every navigation (`key={pathname}` removed)
 - **Providers/Combos pages**: initial-fetch failures now render an error state with a Retry button instead of a misleading "no providers/combos" empty state; mutation refetches don't flash the full-page skeleton
 - **Accessibility**: 19 previously unnamed dashboard Toggles get aria-labels; the Toggle component now also honors a `title` prop as its accessible name; toasts are announced to screen readers (`role=alert` for errors, `role=status` otherwise)
 - **React keys**: index keys replaced with stable ones where they carried state or collided (combo model list on reorder, manual-config files, recent-requests table, chart Cells via raw model+provider, cli-tool note lists)
 - **Components**: provider detail page split 1998→1329 lines (ModelsSection/ConnectionsSection/ProviderModals); profile page 1707→1154 (SecurityCard/NetworkCard/ObservabilityCard/SamlPanel/OidcPanel); ProviderLimits 1697→1498 (pure helpers + ResetCreditsModal) — all pure extractions, JSX moved verbatim
 
 ## Docs
+- **Gitbook**: new **Token Saver** page in all 5 languages (savers table, enabling, scoreboard, bypass header) + nav entry; combo strategy sections (Fallback/Round Robin/**Smart Router**/Fusion) added to vi/zh-CN/es/ja which previously documented none
 - **ARCHITECTURE.md**: full rewrite against the actual system (446 lines, every path verified) — cloud-sync sections removed, SQLite persistence, token-saver subsystem, proxy pools/relays, auth surfaces, executor fleet, env matrix and verification checklist added; known-debt list records the remaining cloud-sync vestiges
 - **README / README.zh-CN**: drop the removed Cloud Sync feature sections and CLOUD_URL variables; document the generated per-install initial password (replaces the stale `123456` claims); fix the `cd 9router/app` build path and machine-specific `/root/dev` paths
 - **Gitbook (en/vi/zh-CN/es/ja)**: replace the stale `123456` default-password claims (quick-start, installation, FAQ, deployment) with the generated-password behavior; fix `cd 9router/app` paths; repair all 70 broken relative links (nonexistent cli/models/api pages unlinked, cross-dir links repointed, link-check now passes)

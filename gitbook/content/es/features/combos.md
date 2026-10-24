@@ -66,6 +66,29 @@ cc/claude-opus-4-5 → cx/gpt-5.2-codex → gc/gemini-3-pro
 
 ---
 
+## Estrategias de combo
+Cada combo ejecuta según una estrategia (se elige al crear/editar el combo):
+
+### 1. Fallback (por defecto)
+Prueba los modelos en el orden configurado. El primero siempre se llama primero; ante rate limit (429) o error transitorio (502/503/504), 9Router pasa automáticamente al siguiente.
+
+### 2. Round Robin
+Rota los modelos entre solicitudes para repartir carga y no agotar la cuota de uno solo. Configurable sticky limit (llamadas por modelo antes de rotar).
+
+### 3. Smart Router (System One)
+Usa un **modelo de decisión System One** (configurado en **Media Providers → System One**) para evaluar el prompt y elegir el modelo óptimo antes de generar.
+- **Fail-Open**: si System One no responde o expira (8 s por defecto), 9Router cae de forma segura al orden secuencial.
+- **Políticas de sesión (retención de prompt cache)**:
+  - **Smart Switch (por defecto, adaptativo ≥80% de confianza)**: recuerda el modelo elegido por sesión para mantener caliente la caché de prompt (Claude Prompt Cache, KV-cache de DeepSeek, Gemini Implicit Cache); cambia si la tarea cambia drásticamente con confianza suficiente.
+  - **Strict Lock (1 tarea = 1 sesión)**: evalúa una vez en el primer turno y bloquea ese modelo toda la sesión — **0 ms de latencia** y 100% de reutilización de caché.
+  - **Per-Turn**: evalúa cada turno de forma independiente, sin adherencia de sesión.
+- **Resiliencia**: si el modelo bloqueado sufre 429/fallo, el bloqueo se libera y el fallback estándar ejecuta de inmediato.
+
+### 4. Fusion
+Consulta todos los modelos del panel en paralelo y un modelo Judge sintetiza una respuesta final. La mejor calidad para razonamiento complejo, pero la más cara: cada solicitud factura todo el panel + el judge (N+1 llamadas).
+
+---
+
 ## Cómo crear combos
 
 ### Paso 1: Abrir el dashboard

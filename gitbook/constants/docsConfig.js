@@ -23,6 +23,7 @@ const NAV_STRUCTURE = [
     items: [
       { key: "smartRouting", slug: "features/smart-routing" },
       { key: "combos", slug: "features/combos" },
+      { key: "tokenSaver", slug: "features/token-saver" },
       { key: "quotaTracking", slug: "features/quota-tracking" }
     ]
   },
@@ -68,6 +69,7 @@ const TRANSLATIONS = {
     features: "Features",
     smartRouting: "Smart Routing",
     combos: "Combos & Fallback",
+    tokenSaver: "Token Saver",
     quotaTracking: "Quota Tracking",
     integration: "Integration",
     claudeCode: "Claude Code",
@@ -99,6 +101,7 @@ const TRANSLATIONS = {
     features: "Tính năng",
     smartRouting: "Định tuyến thông minh",
     combos: "Combo & Fallback",
+    tokenSaver: "Tiết kiệm Token",
     quotaTracking: "Theo dõi Quota",
     integration: "Tích hợp",
     claudeCode: "Claude Code",
@@ -130,6 +133,7 @@ const TRANSLATIONS = {
     features: "功能",
     smartRouting: "智能路由",
     combos: "组合与回退",
+    tokenSaver: "Token 节省",
     quotaTracking: "配额跟踪",
     integration: "集成",
     claudeCode: "Claude Code",
@@ -161,6 +165,7 @@ const TRANSLATIONS = {
     features: "Funciones",
     smartRouting: "Enrutamiento inteligente",
     combos: "Combos y Fallback",
+    tokenSaver: "Ahorro de Tokens",
     quotaTracking: "Seguimiento de cuota",
     integration: "Integración",
     claudeCode: "Claude Code",
@@ -192,6 +197,7 @@ const TRANSLATIONS = {
     features: "機能",
     smartRouting: "スマートルーティング",
     combos: "コンボとフォールバック",
+    tokenSaver: "トークン節約",
     quotaTracking: "クォータ追跡",
     integration: "連携",
     claudeCode: "Claude Code",

@@ -66,6 +66,29 @@ cc/claude-opus-4-5 → cx/gpt-5.2-codex → gc/gemini-3-pro
 
 ---
 
+## Chiến lược Combo
+Mỗi combo chạy theo một chiến lược (chọn khi tạo/sửa combo):
+
+### 1. Fallback (Mặc định)
+Thử lần lượt theo thứ tự cấu hình. Model đầu luôn được gọi trước; khi gặp rate limit (429) hoặc lỗi tạm thời (502/503/504), 9Router tự động chuyển sang model kế tiếp.
+
+### 2. Round Robin
+Xoay vòng các model giữa các yêu cầu để dải tải và tránh cạn quota một model. Có thể cấu hình sticky limit (số lượt mỗi model trước khi xoay).
+
+### 3. Smart Router (System One)
+Dùng **model quyết định System One** (cấu hình tại **Media Providers → System One**) đánh giá prompt và chọn model tối ưu trước khi sinh.
+- **Fail-Open**: nếu System One không tới được hoặc timeout (mặc định 8s), 9Router an toàn fallback về thứ tự tuần tự.
+- **Chính sách phiên (giữ prompt cache)**:
+  - **Smart Switch (mặc định, ngưỡng thích ứng ≥80%)**: giữ model đã chọn cho phiên để giữ prompt cache ấm (Claude Prompt Cache, KV-cache DeepSeek, Gemini Implicit Cache); đổi model khi nhiệm vụ thay đổi hẳn và độ tin cậy đủ cao.
+  - **Strict Lock (1 tác vụ = 1 phiên)**: đánh giá một lần ở lượt đầu rồi khóa model cho cả phiên — **0 ms độ trễ**, 100% tái dùng prompt cache.
+  - **Per-Turn**: đánh giá độc lập mỗi lượt, không dính phiên.
+- **Khả năng chịu lỗi**: model đang khóa bị 429/lỗi → khóa được giải phóng và fallback chuẩn chạy ngay.
+
+### 4. Fusion
+Gọi song song tất cả model trong panel, rồi một model Judge tổng hợp thành một câu trả lời cuối cùng. Chất lượng tốt nhất cho tác vụ phức tạp, nhưng đắt nhất: mỗi yêu cầu tính phí toàn bộ panel + judge (N+1 lượt gọi).
+
+---
+
 ## Cách tạo Combos
 
 ### Bước 1: Mở Dashboard

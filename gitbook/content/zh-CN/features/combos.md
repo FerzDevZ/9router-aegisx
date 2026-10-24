@@ -66,6 +66,29 @@ cc/claude-opus-4-5 → cx/gpt-5.2-codex → gc/gemini-3-pro
 
 ---
 
+## 组合策略
+每个组合按一种策略运行（创建/编辑组合时选择）：
+
+### 1. Fallback（默认）
+按配置顺序依次尝试。第一个模型总是先被调用；遇到限流（429）或临时错误（502/503/504）时，9Router 自动回退到下一个模型。
+
+### 2. Round Robin（轮询）
+在请求间轮转模型以分摊负载、避免耗尽单个模型配额。可配置粘性上限（每个模型轮转前的调用次数）。
+
+### 3. Smart Router（System One）
+使用 **System One 决策模型**（在 **Media Providers → System One** 配置）评估提示词，在生成前动态选出最优模型。
+- **Fail-Open**：System One 不可达或超时（默认 8 秒）时，安全回退到标准顺序。
+- **会话策略（保持 prompt cache）**：
+  - **Smart Switch（默认，自适应 ≥80% 置信度）**：为会话记住所选模型以保持上游 prompt cache 温热（Claude Prompt Cache、DeepSeek KV-cache、Gemini Implicit Cache）；任务剧变且置信度足够时自动切换。
+  - **Strict Lock（1 任务 = 1 会话）**：首轮评估一次后为整个会话锁定模型 —— **0 ms 额外延迟**，100% prompt cache 复用。
+  - **Per-Turn**：每轮独立评估，无会话粘性。
+- **容错**：锁定模型 429/失败时立即解除锁定并执行标准回退。
+
+### 4. Fusion（融合）
+并行查询 panel 中的所有模型，再由 Judge 模型综合出一条最终答案。适合需要多视角的复杂推理，但成本最高：每个请求计费全部 panel 模型 + judge（N+1 次调用）。
+
+---
+
 ## 如何创建组合
 
 ### 步骤 1:打开仪表盘
