@@ -22,13 +22,32 @@ jobs:
           cache: npm
       - name: Install root deps
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-      - name: ESLint
-        run: npx eslint src open-sse scripts --max-warnings 0 || npx eslint src open-sse scripts
+      - name: ESLint (0 errors; warnings tracked, not gating)
+        run: npx eslint src open-sse scripts
       - name: Provider registry baseline (no drift)
         run: |
           node tests/__baseline__/verify-providers.mjs
           node tests/__baseline__/verify-alias.mjs
           node tests/__baseline__/verify-oauth-urls.mjs
+
+  unit-tests:
+    name: Unit tests (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install root deps
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+      - name: Install test deps
+        run: npm --prefix tests install --no-audit --no-fund
+      - name: Run unit suite
+        run: node tests/node_modules/.bin/vitest run --root tests
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
 
   build:
     name: Next build

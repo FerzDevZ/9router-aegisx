@@ -35,11 +35,14 @@ describe("detectRequiredCapabilities", () => {
     expect(r.has("vision")).toBe(true);
   });
 
-  it("web_search tool -> search", () => {
+  it("web_search tool -> no capability (search auto-switch disabled)", () => {
+    // detectRequiredCapabilities intentionally does NOT map search tools to a
+    // "search" capability yet ("feature not wired yet" in combo.js) — pin that
+    // so re-enabling it is a conscious change with this test updated.
     const r = detectRequiredCapabilities({ messages: [{ role: "user", content: "q" }], tools: [
       { type: "web_search" },
     ] });
-    expect(r.has("search")).toBe(true);
+    expect(r.size).toBe(0);
   });
 
   it("responses input_image -> vision", () => {

@@ -150,14 +150,16 @@ describe("OpenCode Go x-opencode-session", () => {
 });
 
 describe("chatCore provider session forwarding", () => {
-  it("passes the original provider session and client tool on initial and retry execution", () => {
+  it("passes the original provider session and client tool on initial, refresh-retry, and thinking-downgrade-retry execution", () => {
     const source = readFileSync(
       fileURLToPath(new URL("../../open-sse/handlers/chatCore.js", import.meta.url)),
       "utf8",
     );
     const calls = [...source.matchAll(/executor\.execute\(\{([\s\S]*?)\}\)/g)].map((match) => match[1]);
 
-    expect(calls).toHaveLength(2);
+    // 3 dispatch sites: initial execute, 401/403 refresh retry, thinking-400
+    // downgrade retry — every one must forward the session seed + client tool.
+    expect(calls).toHaveLength(3);
     for (const call of calls) {
       expect(call).toMatch(/providerSessionId:\s*sessionSeed/);
       expect(call).toMatch(/\bclientTool\b/);

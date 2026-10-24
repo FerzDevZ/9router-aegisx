@@ -29,7 +29,10 @@ env:
 jobs:
   prepare:
     name: Validate release
+    runs-on:
+    # Upstream-only workflow (deploys to decolua-owned targets) — no-op on forks.
     runs-on: ubuntu-latest
+    if: github.repository == 'decolua/9router'
     timeout-minutes: 10
     permissions:
       contents: read

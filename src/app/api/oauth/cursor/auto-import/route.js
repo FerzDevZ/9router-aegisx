@@ -75,11 +75,11 @@ const normalize = (value) => {
 /**
  * Extract tokens via better-sqlite3 (bundled dependency).
  * This is the preferred strategy — no external CLI required.
+ * Dynamic import keeps the native module out of the graph until actually
+ * needed, so a missing/broken binding can't break route importability.
  */
-function extractTokensViaBetterSqlite(dbPath) {
-  // Dynamic require so the route stays importable even if native bindings fail
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Database = require("better-sqlite3");
+async function extractTokensViaBetterSqlite(dbPath) {
+  const { default: Database } = await import("better-sqlite3");
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
 
   const query = (key) => {
@@ -220,7 +220,7 @@ export async function GET() {
 
     // Strategy 1: better-sqlite3 (bundled — no external tools required)
     try {
-      const tokens = extractTokensViaBetterSqlite(dbPath);
+      const tokens = await extractTokensViaBetterSqlite(dbPath);
       if (tokens.accessToken && tokens.machineId) {
         return NextResponse.json({
           found: true,

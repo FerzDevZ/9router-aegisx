@@ -7,7 +7,14 @@ import { filterToOpenAIFormat } from "../../open-sse/translator/formats/openai.j
 import { parseSSELine } from "../../open-sse/utils/streamHelpers.js";
 
 describe("request normalization", () => {
-  it("claudeToOpenAIRequest flattens text-only content arrays into string", () => {
+  it("claudeToOpenAIRequest collapses a lone text part, preserves multi-part arrays", () => {
+    // Current contract (collapseTextParts): a single text block becomes a
+    // plain string; two or more blocks stay an OpenAI content-part array.
+    const single = {
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    };
+    expect(claudeToOpenAIRequest("gpt-oss:120b", single, true).messages[0].content).toBe("hi");
+
     const body = {
       messages: [
         {
@@ -21,7 +28,10 @@ describe("request normalization", () => {
     };
 
     const result = claudeToOpenAIRequest("gpt-oss:120b", body, true);
-    expect(result.messages[0].content).toBe("hi\nthere");
+    expect(result.messages[0].content).toEqual([
+      { type: "text", text: "hi" },
+      { type: "text", text: "there" },
+    ]);
   });
 
   it("claudeToOpenAIRequest preserves multimodal arrays", () => {
@@ -48,7 +58,15 @@ describe("request normalization", () => {
     expect(Array.isArray(result.messages[0].content)).toBe(true);
   });
 
-  it("filterToOpenAIFormat flattens text-only arrays to string", () => {
+  it("filterToOpenAIFormat preserves content-part arrays (no collapse at this layer)", () => {
+    const single = {
+      messages: [{ role: "user", content: [{ type: "text", text: "a" }] }],
+    };
+    // Lone-text collapsing happens in the dedicated translators
+    // (collapseTextParts), not in the generic format filter.
+    expect(filterToOpenAIFormat(JSON.parse(JSON.stringify(single))).messages[0].content)
+      .toEqual([{ type: "text", text: "a" }]);
+
     const body = {
       messages: [
         {
@@ -62,7 +80,10 @@ describe("request normalization", () => {
     };
 
     const result = filterToOpenAIFormat(JSON.parse(JSON.stringify(body)));
-    expect(result.messages[0].content).toBe("a\nb");
+    expect(result.messages[0].content).toEqual([
+      { type: "text", text: "a" },
+      { type: "text", text: "b" },
+    ]);
   });
 
   it("translateRequest keeps /v1/messages Claude->OpenAI text payloads string-safe", () => {
@@ -92,8 +113,12 @@ describe("request normalization", () => {
     );
 
     const userMessage = result.messages.find((m) => m.role === "user");
-    expect(typeof userMessage.content).toBe("string");
-    expect(userMessage.content).toBe("hello\nworld");
+    // Multi-part text stays an OpenAI content-part array (single blocks collapse).
+    expect(Array.isArray(userMessage.content)).toBe(true);
+    expect(userMessage.content).toEqual([
+      { type: "text", text: "hello" },
+      { type: "text", text: "world" },
+    ]);
   });
 
   it("translateRequest strips unsupported Anthropic output_config for MiniMax Claude-compatible endpoints", () => {
@@ -164,14 +189,18 @@ describe("request normalization", () => {
     expect(result.output_config).toEqual(body.output_config);
   });
 
-  it("parseSSELine supports provider raw NDJSON stream lines", () => {
+  it("parseSSELine supports Ollama raw NDJSON stream lines (format-gated)", () => {
     const raw = JSON.stringify({
       model: "gpt-oss:120b",
       message: { role: "assistant", content: "hello" },
       done: false,
     });
 
-    const parsed = parseSSELine(raw);
+    // NDJSON parsing is gated on the Ollama format; without it a bare JSON
+    // line is not SSE and must return null.
+    expect(parseSSELine(raw)).toBeNull();
+
+    const parsed = parseSSELine(raw, FORMATS.OLLAMA);
     expect(parsed).toEqual({
       model: "gpt-oss:120b",
       message: { role: "assistant", content: "hello" },

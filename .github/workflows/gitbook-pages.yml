@@ -14,7 +14,10 @@ concurrency:
 
 jobs:
   build-deploy:
+    runs-on:
+    # Upstream-only workflow (deploys to decolua-owned targets) — no-op on forks.
     runs-on: ubuntu-latest
+    if: github.repository == 'decolua/9router'
     defaults:
       run:
         working-directory: gitbook

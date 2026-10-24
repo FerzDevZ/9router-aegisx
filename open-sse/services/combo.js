@@ -98,8 +98,11 @@ export function reorderByCapabilities(models, required) {
   };
 
   // Stable sort by tier (Array.prototype.sort is stable in modern engines).
-  return models
-    .map((m, i) => ({ m, i, t: tierOf(m) }))
+  // Identity-preserving fast path: when every model lands in the same tier the
+  // order is already canonical — return the input as-is (callers assert this).
+  const tiered = models.map((m, i) => ({ m, i, t: tierOf(m) }));
+  if (tiered.every((x) => x.t === tiered[0].t)) return models;
+  return tiered
     .sort((a, b) => a.t - b.t || a.i - b.i)
     .map((x) => x.m);
 }

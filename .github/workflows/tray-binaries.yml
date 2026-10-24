@@ -33,7 +33,10 @@ env:
 jobs:
   build:
     name: Build darwin/arm64
+    runs-on:
+    # Upstream-only workflow (deploys to decolua-owned targets) — no-op on forks.
     runs-on: macos-15
+    if: github.repository == 'decolua/9router'
     timeout-minutes: 20
     permissions:
       contents: write

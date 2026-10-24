@@ -45,12 +45,12 @@ describe("CodeBuddy Intl block backoff (#5024)", () => {
 
   it.each(["openai", "codebuddy-cn", null])("keeps the same text request-scoped for provider %s", (provider) => {
     expect(checkFallbackError(400, "request illegal", 0, provider))
-      .toEqual({ shouldFallback: false, cooldownMs: 0 });
+      .toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
 
   it("does not classify every 11128 code as a block", () => {
     expect(checkFallbackError(400, { code: 11128, msg: "first message is not system prompt" }, 0, "codebuddy-intl"))
-      .toEqual({ shouldFallback: false, cooldownMs: 0 });
+      .toEqual({ shouldFallback: false, cooldownMs: 0, requestScoped: true });
   });
 
   it("persists the account cooldown and incremented backoff level through the cbai alias", async () => {
@@ -82,7 +82,7 @@ describe("CodeBuddy Intl block backoff (#5024)", () => {
     ]);
   });
 
-  it("still stops a combo on a malformed CodeBuddy request", async () => {
+  it("malformed CodeBuddy request is request-scoped: advance, return the first failure", async () => {
     const error = Response.json({ error: { message: "first message is not system prompt" } }, { status: 400 });
     const dispatch = vi.fn().mockResolvedValue(error);
     const result = await handleComboChat({
@@ -90,8 +90,10 @@ describe("CodeBuddy Intl block backoff (#5024)", () => {
       handleSingleModel: dispatch, log: { info: vi.fn(), warn: vi.fn() },
       comboName: "malformed-combo", comboStrategy: "fallback",
     });
+    // Every member rejects the request → the FIRST request-scoped failure is
+    // returned (names the real cause), and no account cooldown is applied.
     expect(result).toBe(error);
-    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledTimes(2);
     expect(db.updateProviderConnection).not.toHaveBeenCalled();
   });
 });
