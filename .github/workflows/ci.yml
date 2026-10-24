@@ -45,7 +45,8 @@ jobs:
       - name: Install test deps
         run: npm --prefix tests install --no-audit --no-fund
       - name: Run unit suite
-        run: node tests/node_modules/.bin/vitest run --root tests
+        working-directory: tests
+        run: node_modules/.bin/vitest run
         env:
           NEXT_TELEMETRY_DISABLED: 1
 
