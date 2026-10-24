@@ -207,6 +207,15 @@ export function startCodexProxy(appPort) {
         return;
       }
 
+      // Anti-CSRF: legit browser redirects send no Origin; a cross-origin
+      // fetch hitting this loopback callback is an attack (same guard as the
+      // trae/windsurf/zed proxies).
+      if (!isLoopbackOrigin(req.headers.origin)) {
+        res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderCodexResultPage(false, "Cross-origin callback rejected"));
+        return;
+      }
+
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
       const errorParam = url.searchParams.get("error");
@@ -347,6 +356,15 @@ export function startXaiProxy(appPort) {
       if (url.pathname !== "/callback" && url.pathname !== "/auth/callback") {
         res.writeHead(404);
         res.end("Not found");
+        return;
+      }
+
+      // Anti-CSRF: legit browser redirects send no Origin; a cross-origin
+      // fetch hitting this loopback callback is an attack (same guard as the
+      // trae/windsurf/zed proxies).
+      if (!isLoopbackOrigin(req.headers.origin)) {
+        res.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderXaiResultPage(false, "Cross-origin callback rejected"));
         return;
       }
 

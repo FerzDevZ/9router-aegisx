@@ -50,6 +50,13 @@ const ALWAYS_PROTECTED = [
   // `translate` step 3 inspects executor headers — requireLogin=false must never
   // expose these.
   "/api/translator",
+  // Serverless relay deploys: the request body carries the user's
+  // Netlify/Vercel/Cloudflare/Deno API tokens — same sensitivity class as the
+  // translator console, so requireLogin=false must not expose them either.
+  "/api/proxy-pools/netlify-deploy",
+  "/api/proxy-pools/vercel-deploy",
+  "/api/proxy-pools/cloudflare-deploy",
+  "/api/proxy-pools/deno-deploy",
 ];
 
 // Require auth, but allow through if requireLogin is disabled

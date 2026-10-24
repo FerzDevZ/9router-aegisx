@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { createHash } from "node:crypto";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
@@ -17,6 +18,18 @@ function maskApiKey(key) {
 function readCachedTokens(tokens) {
   if (!tokens || typeof tokens !== "object") return 0;
   return tokens.cached_tokens || tokens.cache_read_input_tokens || tokens.prompt_tokens_details?.cached_tokens || 0;
+}
+
+// Stable NON-RAW bucket id for API-key stats keys: registered keys use their
+// apiKeysRepo row id, unknown keys use a short deterministic hash. The raw key
+// must never travel in the /api/usage/stats response map keys, and maskApiKey
+// alone collides for team keys sharing the machine-id prefix.
+function apiKeyBucketId(rawKey, apiKeyMap) {
+  const val = rawKey && typeof rawKey === "string" ? rawKey.trim() : null;
+  if (!val) return "local-no-key";
+  const known = apiKeyMap[val];
+  if (known?.id) return known.id;
+  return `hash-${createHash("sha256").update(val).digest("hex").slice(0, 12)}`;
 }
 
 const PENDING_TIMEOUT_MS = 60 * 1000;
@@ -521,15 +534,18 @@ export async function getUsageStats(period = "all") {
         const apiKeyMasked = maskApiKey(apiKeyVal);
         const keyName = keyInfo?.name || (apiKeyVal ? (apiKeyMasked || apiKeyVal.slice(0, 8) + "...") : "Local (No API Key)");
         const apiKeyKey = apiKeyMasked || "local-no-key";
-        if (!stats.byApiKey[akKey]) {
-          stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
+        // Stored day buckets are raw-keyed (internal); the RESPONSE map re-buckets
+        // by the non-raw stable id so no raw key reaches the client.
+        const respKey = `${apiKeyBucketId(ak.apiKey, apiKeyMap)}|${rawModel}|${provider || "unknown"}`;
+        if (!stats.byApiKey[respKey]) {
+          stats.byApiKey[respKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey, lastUsed: dateKey };
         }
-        stats.byApiKey[akKey].requests += ak.requests || 0;
-        stats.byApiKey[akKey].promptTokens += ak.promptTokens || 0;
-        stats.byApiKey[akKey].completionTokens += ak.completionTokens || 0;
-        stats.byApiKey[akKey].cachedTokens += ak.cachedTokens || 0;
-        stats.byApiKey[akKey].cost += ak.cost || 0;
-        if (dateKey > (stats.byApiKey[akKey].lastUsed || "")) stats.byApiKey[akKey].lastUsed = dateKey;
+        stats.byApiKey[respKey].requests += ak.requests || 0;
+        stats.byApiKey[respKey].promptTokens += ak.promptTokens || 0;
+        stats.byApiKey[respKey].completionTokens += ak.completionTokens || 0;
+        stats.byApiKey[respKey].cachedTokens += ak.cachedTokens || 0;
+        stats.byApiKey[respKey].cost += ak.cost || 0;
+        if (dateKey > (stats.byApiKey[respKey].lastUsed || "")) stats.byApiKey[respKey].lastUsed = dateKey;
       }
 
       for (const [epKey, ep] of Object.entries(day.byEndpoint || {})) {
@@ -574,7 +590,7 @@ export async function getUsageStats(period = "all") {
       }
 
       const apiKeyKey = (e.apiKey && typeof e.apiKey === "string")
-        ? `${e.apiKey}|${e.model}|${e.provider || "unknown"}`
+        ? `${apiKeyBucketId(e.apiKey, apiKeyMap)}|${e.model}|${e.provider || "unknown"}`
         : "local-no-key";
       if (stats.byApiKey[apiKeyKey] && new Date(ts) > new Date(stats.byApiKey[apiKeyKey].lastUsed)) stats.byApiKey[apiKeyKey].lastUsed = ts;
 
@@ -647,9 +663,10 @@ export async function getUsageStats(period = "all") {
         const keyInfo = apiKeyMap[apiKeyVal];
         const apiKeyMasked = maskApiKey(apiKeyVal);
         const keyName = keyInfo?.name || apiKeyMasked || r.apiKey.slice(0, 8) + "...";
-        // Key by the FULL api key (same as the daily rollup + lastUsed overlay)
-        // — masking here collided all keys sharing a prefix into one bucket.
-        const akKey = `${r.apiKey}|${r.model}|${r.provider || "unknown"}`;
+        // Bucket by the non-raw stable id (registered id or hash) — raw keys
+        // never travel in the response map keys, and the hash keeps
+        // same-masked-prefix team keys in separate buckets.
+        const akKey = `${apiKeyBucketId(r.apiKey, apiKeyMap)}|${r.model}|${r.provider || "unknown"}`;
         if (!stats.byApiKey[akKey]) {
           stats.byApiKey[akKey] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked, keyName, apiKeyKey: apiKeyMasked, lastUsed: r.timestamp };
         }

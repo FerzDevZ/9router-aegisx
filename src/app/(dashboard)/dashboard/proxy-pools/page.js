@@ -775,6 +775,14 @@ export default function ProxyPoolsPage() {
                     {pool.type === "netlify" && (
                       <Badge variant="default" size="sm">netlify relay</Badge>
                     )}
+                    {["vercel", "cloudflare", "deno", "netlify"].includes(pool.type) && !pool.relaySecret && (
+                      <span
+                        variant="warning"
+                        title="Deployed before the shared-secret update: anyone who learns the relay URL can use it as an open proxy. Redeploy to seal it."
+                      >
+                        <Badge variant="warning" size="sm">unsealed</Badge>
+                      </span>
+                    )}
                     <Badge variant="default" size="sm">
                       {pool.boundConnectionCount || 0} bound
                     </Badge>
@@ -948,7 +956,7 @@ export default function ProxyPoolsPage() {
             value={cloudflareForm.apiToken}
             onChange={(e) => setCloudflareForm((prev) => ({ ...prev, apiToken: e.target.value }))}
             placeholder="your-cloudflare-api-token"
-            hint={<>Requires "Workers Scripts: Edit" permission. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Get token →</a></>}
+            hint={<>Requires &quot;Workers Scripts: Edit&quot; permission. <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Get token →</a></>}
             type="password"
           />
           <Input
