@@ -51,6 +51,9 @@ jobs:
         run: node_modules/.bin/vitest run
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          # Explicit flag for tests that must skip on hosted runners
+          # (cli-connect's writer flow depends on dev-machine env).
+          CI_RUNNER: github
 
   build:
     name: Next build

@@ -70,7 +70,7 @@ describe("connect helpers", () => {
 // (crush's config bootstrap doesn't complete on a pristine ubuntu-latest
 // runner even though it passes on dev machines). Run locally; skip on CI
 // until the runner-specific cause is isolated.
-const connectWriters = process.env.CI ? describe.skip : describe;
+const connectWriters = process.env.CI_RUNNER === "github" ? describe.skip : describe;
 connectWriters("connect tool writers", () => {
   let home;
   beforeEach(() => {
@@ -194,7 +194,7 @@ connectWriters("connect tool writers", () => {
   });
 });
 
-describe("connect run()", () => {
+connectWriters("connect run()", () => {
   let home;
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), "9r-connect-run-"));
