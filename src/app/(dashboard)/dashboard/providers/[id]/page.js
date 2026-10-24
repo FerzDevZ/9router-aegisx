@@ -1,0 +1,1329 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
+import { Card, Button, Badge, Input, CardSkeleton } from "@/shared/components";
+import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
+import { getModelsByProviderId } from "@/shared/constants/models";
+import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import { translate } from "@/i18n/runtime";
+import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
+import PassthroughModelsSection from "./PassthroughModelsSection";
+import CustomConfigCard from "./CustomConfigCard";
+import ModelsSection from "./ModelsSection";
+import ConnectionsSection from "./ConnectionsSection";
+import ProviderModals from "./ProviderModals";
+
+const ONE_BY_ONE_DELAY_MS = 1000;
+
+const AUTO_PING_SETTINGS_KEYS = {
+  claude: "claudeAutoPing",
+  codex: "codexAutoPing",
+};
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export default function ProviderDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const providerId = params.id;
+  const { getCaps } = useModelCaps();
+  const [connections, setConnections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [providerNode, setProviderNode] = useState(null);
+  const [proxyPools, setProxyPools] = useState([]);
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
+  const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
+  const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [addConnectionError, setAddConnectionError] = useState("");
+  const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
+  const [showBulkImportGrokCli, setShowBulkImportGrokCli] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditNodeModal, setShowEditNodeModal] = useState(false);
+  const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState(null);
+  const [modelAliases, setModelAliases] = useState({});
+  const [customModels, setCustomModels] = useState([]);
+  const [headerImgError, setHeaderImgError] = useState(false);
+  const [modelTestResults, setModelTestResults] = useState({});
+  const [modelsTestError, setModelsTestError] = useState("");
+  const [testingModelIds, setTestingModelIds] = useState(() => new Set());
+  const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [selectedConnectionIds, setSelectedConnectionIds] = useState([]);
+  const [bulkProxyPoolId, setBulkProxyPoolId] = useState("__none__");
+  const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
+  const [providerStrategy, setProviderStrategy] = useState(null);
+  const [providerStickyLimit, setProviderStickyLimit] = useState("");
+  const [thinkingMode, setThinkingMode] = useState("auto");
+  const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
+  const [scheduleConnection, setScheduleConnection] = useState(null);
+  const [suggestedModels, setSuggestedModels] = useState([]);
+  const [liveModels, setLiveModels] = useState([]);
+  // Live-catalog fetch warning/error (surfaced for zed only; cursor behavior unchanged).
+  const [liveModelsError, setLiveModelsError] = useState(null);
+  const [kiloFreeModels, setKiloFreeModels] = useState([]);
+  const [disabledModelIds, setDisabledModelIds] = useState([]);
+  const [confirmState, setConfirmState] = useState(null);
+  const [showAgRiskModal, setShowAgRiskModal] = useState(false);
+  const [oneByOneRunning, setOneByOneRunning] = useState(false);
+  const [oneByOneStopping, setOneByOneStopping] = useState(false);
+  const [oneByOneCurrentConnectionId, setOneByOneCurrentConnectionId] = useState(null);
+  const [oneByOneResults, setOneByOneResults] = useState({});
+  const [oneByOneSummary, setOneByOneSummary] = useState(null);
+  const stopOneByOneRef = useRef(false);
+  const [importingQoderModels, setImportingQoderModels] = useState(false);
+  const [importingClineModels, setImportingClineModels] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
+
+  const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
+
+  const openOAuthConnection = () => {
+    setShowOAuthModal(true);
+  };
+
+  const triggerOAuthConnection = () => {
+    if (providerId === "antigravity" && typeof window !== "undefined") {
+      const confirmed = window.localStorage.getItem(AG_RISK_STORAGE_KEY) === "true";
+      if (!confirmed) {
+        setShowAgRiskModal(true);
+        return;
+      }
+    }
+    // Xiaomi Desktop: auto-import local credentials first, OAuth as fallback
+    if (providerId === "xiaomi-mimo") {
+      setShowXiaomiMimoModal(true);
+      return;
+    }
+    if (isOAuth) {
+      openOAuthConnection();
+      return;
+    }
+    setAddConnectionError("");
+    setShowAddApiKeyModal(true);
+  };
+
+  const triggerApiKeyConnection = () => {
+    setAddConnectionError("");
+    setShowAddApiKeyModal(true);
+  };
+
+  const triggerAddConnection = () => {
+    if (isOAuth) {
+      triggerOAuthConnection();
+      return;
+    }
+    triggerApiKeyConnection();
+  };
+
+  const handleAgRiskConfirm = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AG_RISK_STORAGE_KEY, "true");
+    }
+    setShowAgRiskModal(false);
+    if (isOAuth) {
+      openOAuthConnection();
+      return;
+    }
+    triggerApiKeyConnection();
+  };
+
+  const providerInfo = providerNode
+    ? {
+        id: providerNode.id,
+        name: providerNode.name || (providerNode.type === "anthropic-compatible" ? "Anthropic Compatible" : "OpenAI Compatible"),
+        color: providerNode.type === "anthropic-compatible" ? "#D97757" : "#10A37F",
+        textIcon: providerNode.type === "anthropic-compatible" ? "AC" : "OC",
+        apiType: providerNode.apiType,
+        baseUrl: providerNode.baseUrl,
+        type: providerNode.type,
+      }
+    : (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId] || WEB_COOKIE_PROVIDERS[providerId]);
+  const authModes = providerInfo?.authModes || [];
+  const isOAuth = !!OAUTH_PROVIDERS[providerId] || !!FREE_PROVIDERS[providerId] || authModes.includes("oauth");
+  const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
+  const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
+  const staticModels = getModelsByProviderId(providerId);
+  const models = (providerId === "cursor" || providerId === "zed") && liveModels.length > 0
+    ? liveModels
+    : staticModels;
+  const providerAlias = getProviderAlias(providerId);
+  
+  const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
+  const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
+  const isCompatible = isOpenAICompatible || isAnthropicCompatible;
+  const hasDualAuthModes = !isCompatible && isOAuth && supportsApiKeyAuth;
+  const oauthConnectionLabel =
+    providerId === "xai" ? "Grok Build OAuth"
+    : providerId === "grok-cli" ? "Grok CLI Device Login"
+    : providerId === "kimi" ? "Kimi Coding OAuth"
+    : "OAuth";
+  const apiKeyConnectionLabel =
+    providerId === "xai" ? "xAI API Key"
+    : providerId === "kimi" ? "Kimi API Key"
+    : (providerId === "qoder" || providerId === "qoder-cn") ? "PAT"
+    : "API Key";
+  const providerStorageAlias = isCompatible ? providerId : providerAlias;
+  const providerDisplayAlias = isCompatible
+    ? (providerNode?.prefix || providerId)
+    : providerAlias;
+
+  const fetchDisabledModels = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) setDisabledModelIds(data.ids || []);
+    } catch (error) {
+      console.log("Error fetching disabled models:", error);
+    }
+  }, [providerStorageAlias]);
+
+  const handleDisableModel = async (modelId) => {
+    try {
+      const res = await fetch("/api/models/disabled", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerStorageAlias, ids: [modelId] }),
+      });
+      if (res.ok) await fetchDisabledModels();
+    } catch (error) {
+      console.log("Error disabling model:", error);
+    }
+  };
+
+  const handleEnableModel = async (modelId) => {
+    try {
+      const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(modelId)}`, { method: "DELETE" });
+      if (res.ok) await fetchDisabledModels();
+    } catch (error) {
+      console.log("Error enabling model:", error);
+    }
+  };
+
+  const handleDisableAll = async (ids) => {
+    if (!ids.length) return;
+    setConfirmState({
+      title: "Disable All Models",
+      message: `Disable all ${ids.length} model(s)?`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetch("/api/models/disabled", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: providerStorageAlias, ids }),
+          });
+          if (res.ok) await fetchDisabledModels();
+        } catch (error) {
+          console.log("Error disabling all models:", error);
+        }
+      }
+    });
+  };
+
+  const handleEnableAll = async () => {
+    try {
+      const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { method: "DELETE" });
+      if (res.ok) await fetchDisabledModels();
+    } catch (error) {
+      console.log("Error enabling all models:", error);
+    }
+  };
+
+  // Define callbacks BEFORE the useEffect that uses them
+  const fetchAliases = useCallback(async () => {
+    try {
+      const res = await fetch("/api/models/alias");
+      const data = await res.json();
+      if (res.ok) {
+        setModelAliases(data.aliases || {});
+      }
+    } catch (error) {
+      console.log("Error fetching aliases:", error);
+    }
+  }, []);
+
+  const fetchCustomModels = useCallback(async () => {
+    try {
+      const res = await fetch("/api/models/custom", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
+        setCustomModels(data.models || []);
+      }
+    } catch (error) {
+      console.log("Error fetching custom models:", error);
+    }
+  }, []);
+
+  // Fetch free models from Kilo API for kilocode provider
+  useEffect(() => {
+    if (providerId !== "kilocode") return;
+    fetch("/api/providers/kilo/free-models")
+      .then((res) => res.json())
+      .then((data) => { if (data.models?.length) setKiloFreeModels(data.models); })
+      .catch(() => {});
+  }, [providerId]);
+
+  const fetchConnections = useCallback(async () => {
+    try {
+      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
+        fetch("/api/providers", { cache: "no-store" }),
+        fetch("/api/provider-nodes", { cache: "no-store" }),
+        fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
+        fetch("/api/settings", { cache: "no-store" }),
+      ]);
+      const connectionsData = await connectionsRes.json();
+      const nodesData = await nodesRes.json();
+      const proxyPoolsData = await proxyPoolsRes.json();
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      if (connectionsRes.ok) {
+        const filtered = (connectionsData.connections || []).filter(c => c.provider === providerId);
+        setConnections(filtered);
+      }
+      if (proxyPoolsRes.ok) {
+        setProxyPools(proxyPoolsData.proxyPools || []);
+      }
+      // Load per-provider strategy override
+      const override = (settingsData.providerStrategies || {})[providerId] || {};
+      setProviderStrategy(override.fallbackStrategy || null);
+      setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
+      // Load per-provider thinking config
+      const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
+      setThinkingMode(thinkingCfg.mode || "auto");
+      const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
+      const apCfg = autoPingSettingsKey ? settingsData[autoPingSettingsKey] || {} : {};
+      setAutoPing({ enabled: apCfg.enabled === true, connections: apCfg.connections || {}, schedules: apCfg.schedules || {} });
+      if (nodesRes.ok) {
+        let node = (nodesData.nodes || []).find((entry) => entry.id === providerId) || null;
+
+        // Newly created compatible nodes can be briefly unavailable on one worker.
+        // Retry a few times before showing "Provider not found".
+        if (!node && isCompatible) {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            const retryRes = await fetch("/api/provider-nodes", { cache: "no-store" });
+            if (!retryRes.ok) continue;
+            const retryData = await retryRes.json();
+            node = (retryData.nodes || []).find((entry) => entry.id === providerId) || null;
+            if (node) break;
+          }
+        }
+
+        setProviderNode(node);
+      }
+    } catch (error) {
+      console.log("Error fetching connections:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [providerId, isCompatible]);
+
+  const handleUpdateNode = async (formData) => {
+    try {
+      const res = await fetch(`/api/provider-nodes/${providerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setProviderNode(data.node);
+        await fetchConnections();
+        setShowEditNodeModal(false);
+      }
+    } catch (error) {
+      console.log("Error updating provider node:", error);
+    }
+  };
+
+  const saveProviderStrategy = async (strategy, stickyLimit) => {
+    try {
+      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const current = settingsData.providerStrategies || {};
+
+      // Build override: null strategy means remove override, use global
+      const override = {};
+      if (strategy) override.fallbackStrategy = strategy;
+      if (strategy === "round-robin" && stickyLimit !== "") {
+        override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
+      }
+
+      const updated = { ...current };
+      if (Object.keys(override).length === 0) {
+        delete updated[providerId];
+      } else {
+        updated[providerId] = override;
+      }
+
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerStrategies: updated }),
+      });
+    } catch (error) {
+      console.log("Error saving provider strategy:", error);
+    }
+  };
+
+  const handleRoundRobinToggle = (enabled) => {
+    const strategy = enabled ? "round-robin" : null;
+    const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
+    if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
+    setProviderStrategy(strategy);
+    saveProviderStrategy(strategy, sticky);
+  };
+
+  const handleStickyLimitChange = (value) => {
+    setProviderStickyLimit(value);
+    saveProviderStrategy("round-robin", value);
+  };
+
+  const saveThinkingConfig = async (mode) => {
+    try {
+      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const current = settingsData.providerThinking || {};
+      const updated = { ...current };
+      if (!mode || mode === "auto") {
+        delete updated[providerId];
+      } else {
+        updated[providerId] = { mode };
+      }
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerThinking: updated }),
+      });
+    } catch (error) {
+      console.log("Error saving thinking config:", error);
+    }
+  };
+
+  const handleThinkingModeChange = (mode) => {
+    setThinkingMode(mode);
+    saveThinkingConfig(mode);
+  };
+
+  const saveAutoPing = async (next) => {
+    const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
+    if (!autoPingSettingsKey) return;
+
+    setAutoPing(next);
+    try {
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [autoPingSettingsKey]: next }),
+      });
+    } catch (error) {
+      console.log("Error saving auto-ping config:", error);
+    }
+  };
+
+  const handleSaveAutoPing = (connectionId, { reactive, schedule }) => {
+    saveAutoPing({
+      ...autoPing,
+      connections: { ...autoPing.connections, [connectionId]: reactive },
+      schedules: { ...autoPing.schedules, [connectionId]: schedule },
+    });
+  };
+
+  useEffect(() => {
+    fetchConnections();
+    fetchAliases();
+    fetchCustomModels();
+    fetchDisabledModels();
+  }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels]);
+
+  // Live per-connection catalogs (cursor, zed): the static registry carries
+  // no usable list, so resolve from the active connection. Fires only when
+  // the provider id or connection list changes — no polling, no loop.
+  // Cursor path is statement-identical to before; zed adds error surfacing.
+  useEffect(() => {
+    const isLiveCatalog = providerId === "cursor" || providerId === "zed";
+    if (!isLiveCatalog) {
+      setLiveModels([]);
+      return;
+    }
+
+    const connection = connections.find((item) => item.isActive !== false);
+    if (!connection?.id) {
+      setLiveModels([]);
+      if (providerId === "zed") setLiveModelsError(null);
+      return;
+    }
+
+    let cancelled = false;
+    if (providerId === "zed") setLiveModelsError(null);
+    fetch(`/api/providers/${connection.id}/models`, { cache: "no-store" })
+      .then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => null) }))
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        if (ok && Array.isArray(data?.models) && data.models.length > 0) {
+          setLiveModels(data.models);
+          if (providerId === "zed" && data?.warning) setLiveModelsError(data.warning);
+          return;
+        }
+        if (providerId === "zed") {
+          setLiveModels([]);
+          setLiveModelsError(data?.warning || data?.error || "Zed returned no live models.");
+        }
+      })
+      .catch(() => {
+        if (!cancelled && providerId === "zed") {
+          setLiveModels([]);
+          setLiveModelsError("Failed to reach the Zed model catalog.");
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [providerId, connections]);
+
+  // Fetch suggested models from provider's public API (if configured)
+  useEffect(() => {
+    const fetcher = (OAUTH_PROVIDERS[providerId] || APIKEY_PROVIDERS[providerId] || FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId])?.modelsFetcher;
+    if (!fetcher) return;
+    fetchSuggestedModels(fetcher).then(setSuggestedModels);
+  }, [providerId]);
+
+  const handleSetAlias = async (modelId, alias, providerAliasOverride = providerAlias) => {
+    const fullModel = `${providerAliasOverride}/${modelId}`;
+    try {
+      const res = await fetch("/api/models/alias", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: fullModel, alias }),
+      });
+      if (res.ok) {
+        await fetchAliases();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to set alias");
+      }
+    } catch (error) {
+      console.log("Error setting alias:", error);
+    }
+  };
+
+  const handleDeleteAlias = async (alias) => {
+    try {
+      const res = await fetch(`/api/models/alias?alias=${encodeURIComponent(alias)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        await fetchAliases();
+      }
+    } catch (error) {
+      console.log("Error deleting alias:", error);
+    }
+  };
+
+  // `transport` pins a realtime STT dispatch marker (shared whitelist
+  // STT_TRANSPORT_META); the API only honours it on type "stt" records.
+  const handleAddCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias, caps, transport) => {
+    try {
+      const res = await fetch("/api/models/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}), ...(transport ? { transport } : {}) }),
+      });
+      if (res.ok) {
+        await fetchCustomModels();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to add custom model");
+      }
+    } catch (error) {
+      console.log("Error adding custom model:", error);
+    }
+  };
+
+  const handleDeleteCustomModel = async (modelId, type = "llm", providerAliasOverride = providerStorageAlias) => {
+    try {
+      const params = new URLSearchParams({ providerAlias: providerAliasOverride, id: modelId, type });
+      const res = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchCustomModels();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+      }
+    } catch (error) {
+      console.log("Error deleting custom model:", error);
+    }
+  };
+
+  // Fetch Qoder model list and automatically add to available models
+  const handleImportQoderModels = async () => {
+    if (importingQoderModels) return;
+    const activeConnection = connections.find((conn) => conn.isActive !== false);
+    if (!activeConnection) {
+      alert(translate("Please add an active Qoder connection first"));
+      return;
+    }
+
+    setImportingQoderModels(true);
+    try {
+      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || translate("Failed to fetch models"));
+        return;
+      }
+      const models = data.models || [];
+      if (models.length === 0) {
+        alert(translate("No models returned"));
+        return;
+      }
+
+      let importedCount = 0;
+      for (const model of models) {
+        const modelId = model.id || model.name;
+        if (!modelId) continue;
+        
+        // Qoder model ID format may be "qoder/auto", "qoder-cn/auto" or "auto",
+        // need to remove the provider prefix before storing.
+        const cleanModelId = modelId.replace(/^(qoder-cn|qoder)\//, "");
+        const alreadyExists = customModels.some(
+          (entry) => entry.providerAlias === providerStorageAlias && entry.id === cleanModelId && (entry.kind || entry.type || "llm") === "llm"
+        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanModelId}`);
+        if (alreadyExists) {
+          continue;
+        }
+
+        await handleAddCustomModel(cleanModelId, "llm", providerStorageAlias);
+        importedCount += 1;
+      }
+      
+      if (importedCount === 0) {
+        alert(translate("All models already exist, no new models added"));
+      } else {
+        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+      }
+    } catch (error) {
+      console.log("Error importing Qoder models:", error);
+      alert(translate("Error fetching models") + ": " + error.message);
+    } finally {
+      setImportingQoderModels(false);
+    }
+  };
+  // Fetch the live Cline /models catalog and add every model not yet present.
+  // Cline and ClinePass share the same catalog endpoint (api.cline.bot/api/v1/models).
+  const handleImportClineModels = async () => {
+    if (importingClineModels) return;
+    const activeConnection = connections.find((conn) => conn.isActive !== false);
+    if (!activeConnection) {
+      alert(translate("Please add an active Cline connection first"));
+      return;
+    }
+    setImportingClineModels(true);
+    try {
+      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || translate("Failed to fetch models"));
+        return;
+      }
+      const models = data.models || [];
+      if (models.length === 0) {
+        alert(translate("No models returned"));
+        return;
+      }
+      let importedCount = 0;
+      for (const model of models) {
+        const modelId = model.id || model.name;
+        if (!modelId) continue;
+        const alreadyExists = customModels.some(
+          (entry) => entry.providerAlias === providerStorageAlias && entry.id === modelId && (entry.kind || entry.type || "llm") === "llm"
+        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${modelId}`);
+        if (alreadyExists) {
+          continue;
+        }
+        await handleAddCustomModel(modelId, "llm", providerStorageAlias);
+        importedCount += 1;
+      }
+      if (importedCount === 0) {
+        alert(translate("All models already exist, no new models added"));
+      } else {
+        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+      }
+    } catch (error) {
+      console.log("Error importing Cline models:", error);
+      alert(translate("Error fetching models") + ": " + error.message);
+    } finally {
+      setImportingClineModels(false);
+    }
+  };
+
+  const handleRunOneByOneTest = async () => {
+    if (oneByOneRunning || connections.length === 0) return;
+
+    const queuedState = Object.fromEntries(
+      connections.map((connection) => [connection.id, { state: "queued", error: null }]),
+    );
+
+    stopOneByOneRef.current = false;
+    setOneByOneRunning(true);
+    setOneByOneStopping(false);
+    setOneByOneCurrentConnectionId(null);
+    setOneByOneResults(queuedState);
+    setOneByOneSummary({ total: connections.length, completed: 0, passed: 0, failed: 0, stopped: false });
+
+    let passed = 0;
+    let failed = 0;
+
+    try {
+      for (let index = 0; index < connections.length; index += 1) {
+        if (stopOneByOneRef.current) {
+          setOneByOneSummary({
+            total: connections.length,
+            completed: index,
+            passed,
+            failed,
+            stopped: true,
+          });
+          break;
+        }
+
+        const connection = connections[index];
+        setOneByOneCurrentConnectionId(connection.id);
+        setOneByOneResults((prev) => ({
+          ...prev,
+          [connection.id]: { state: "testing", error: null },
+        }));
+
+        try {
+          const res = await fetch(`/api/providers/${connection.id}/test`, { method: "POST" });
+          const data = await res.json();
+          const valid = !!data.valid;
+
+          if (valid) {
+            passed += 1;
+          } else {
+            failed += 1;
+          }
+
+          setOneByOneResults((prev) => ({
+            ...prev,
+            [connection.id]: {
+              state: valid ? "success" : "failed",
+              error: valid ? null : (data.error || null),
+            },
+          }));
+        } catch (error) {
+          failed += 1;
+          setOneByOneResults((prev) => ({
+            ...prev,
+            [connection.id]: {
+              state: "failed",
+              error: error.message || "Test failed",
+            },
+          }));
+        }
+
+        setOneByOneSummary({
+          total: connections.length,
+          completed: index + 1,
+          passed,
+          failed,
+          stopped: false,
+        });
+
+        if (index < connections.length - 1) {
+          await sleep(ONE_BY_ONE_DELAY_MS);
+        }
+      }
+    } finally {
+      setOneByOneCurrentConnectionId(null);
+      setOneByOneRunning(false);
+      setOneByOneStopping(false);
+      stopOneByOneRef.current = false;
+    }
+  };
+
+  const handleStopOneByOneTest = () => {
+    if (!oneByOneRunning) return;
+    stopOneByOneRef.current = true;
+    setOneByOneStopping(true);
+  };
+
+  const handleDelete = async (id) => {
+    setConfirmState({
+      title: "Delete Connection",
+      message: "Delete this connection?",
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
+          if (res.ok) {
+            setConnections(prev => prev.filter(c => c.id !== id));
+          }
+        } catch (error) {
+          console.log("Error deleting connection:", error);
+        }
+      }
+    });
+  };
+
+  const handleBulkDelete = () => {
+    const count = selectedConnectionIds.length;
+    if (count === 0) return;
+    setConfirmState({
+      title: `Delete ${count} Connection${count > 1 ? "s" : ""}`,
+      message: `Delete ${count} connection${count > 1 ? "s" : ""}? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        let failed = 0;
+        const idsToDelete = [...selectedConnectionIds];
+        for (const id of idsToDelete) {
+          try {
+            const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
+            if (!res.ok) failed += 1;
+          } catch (error) {
+            console.log("Error deleting connection:", error);
+            failed += 1;
+          }
+        }
+        setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
+        setSelectedConnectionIds([]);
+        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+      }
+    });
+  };
+
+  const handleOAuthSuccess = () => {
+    fetchConnections();
+    setShowOAuthModal(false);
+  };
+
+  const handleIFlowCookieSuccess = () => {
+    fetchConnections();
+    setShowIFlowCookieModal(false);
+  };
+
+  const handleSaveApiKey = async (formData) => {
+    setAddConnectionError("");
+    try {
+      const res = await fetch("/api/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: providerId, ...formData }),
+      });
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok) {
+        await fetchConnections();
+        setShowAddApiKeyModal(false);
+        return;
+      }
+
+      setAddConnectionError(data?.error || "Failed to save connection");
+    } catch (error) {
+      console.log("Error saving connection:", error);
+      setAddConnectionError("Failed to save connection");
+    }
+  };
+
+  const handleUpdateConnection = async (formData) => {
+    try {
+      const res = await fetch(`/api/providers/${selectedConnection.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        await fetchConnections();
+        setShowEditModal(false);
+      }
+    } catch (error) {
+      console.log("Error updating connection:", error);
+    }
+  };
+
+  const handleUpdateConnectionStatus = async (id, isActive) => {
+    try {
+      const res = await fetch(`/api/providers/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
+      });
+      if (res.ok) {
+        setConnections(prev => prev.map(c => c.id === id ? { ...c, isActive } : c));
+      }
+    } catch (error) {
+      console.log("Error updating connection status:", error);
+    }
+  };
+
+  const handleSwapPriority = async (index1, index2) => {
+    // Optimistic update state
+    const newConnections = [...connections];
+    [newConnections[index1], newConnections[index2]] = [newConnections[index2], newConnections[index1]];
+    setConnections(newConnections);
+
+    try {
+      await Promise.all([
+        fetch(`/api/providers/${newConnections[index1].id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priority: index1 }),
+        }),
+        fetch(`/api/providers/${newConnections[index2].id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priority: index2 }),
+        }),
+      ]);
+    } catch (error) {
+      console.log("Error swapping priority:", error);
+      await fetchConnections();
+    }
+  };
+
+  const selectedConnections = connections.filter((conn) => selectedConnectionIds.includes(conn.id));
+  const allSelected = connections.length > 0 && selectedConnectionIds.length === connections.length;
+
+  const toggleSelectConnection = (connectionId) => {
+    setSelectedConnectionIds((prev) => (
+      prev.includes(connectionId)
+        ? prev.filter((id) => id !== connectionId)
+        : [...prev, connectionId]
+    ));
+  };
+
+  const toggleSelectAllConnections = () => {
+    if (allSelected) {
+      setSelectedConnectionIds([]);
+      return;
+    }
+    setSelectedConnectionIds(connections.map((conn) => conn.id));
+  };
+
+  const clearSelection = () => {
+    setSelectedConnectionIds([]);
+    setBulkProxyPoolId("__none__");
+  };
+
+  useEffect(() => {
+    setSelectedConnectionIds((prev) => prev.filter((id) => connections.some((conn) => conn.id === id)));
+  }, [connections]);
+
+  const selectedProxySummary = (() => {
+    if (selectedConnections.length === 0) return "";
+    const poolIds = new Set(selectedConnections.map((conn) => conn.providerSpecificData?.proxyPoolId || "__none__"));
+    if (poolIds.size === 1) {
+      const onlyId = [...poolIds][0];
+      if (onlyId === "__none__") return "All selected currently unbound";
+      const pool = proxyPools.find((p) => p.id === onlyId);
+      return `All selected currently bound to ${pool?.name || onlyId}`;
+    }
+    return "Selected connections have mixed proxy bindings";
+  })();
+
+  const openBulkProxyModal = () => {
+    if (selectedConnections.length === 0) return;
+    const uniquePoolIds = [...new Set(selectedConnections.map((conn) => conn.providerSpecificData?.proxyPoolId || "__none__"))];
+    setBulkProxyPoolId(uniquePoolIds.length === 1 ? uniquePoolIds[0] : "__none__");
+    setShowBulkProxyModal(true);
+  };
+
+  const closeBulkProxyModal = () => {
+    if (bulkUpdatingProxy) return;
+    setShowBulkProxyModal(false);
+  };
+
+  const applyProxyAssignments = async (assignments) => {
+    setBulkUpdatingProxy(true);
+    try {
+      let failed = 0;
+      for (const { connectionId, proxyPoolId } of assignments) {
+        try {
+          const res = await fetch(`/api/providers/${connectionId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ proxyPoolId }),
+          });
+          if (!res.ok) failed += 1;
+        } catch (e) {
+          console.log("Error applying proxy for", connectionId, e);
+          failed += 1;
+        }
+      }
+      if (failed > 0) alert(`Updated with ${failed} failed request(s).`);
+      await fetchConnections();
+      setShowBulkProxyModal(false);
+    } finally {
+      setBulkUpdatingProxy(false);
+    }
+  };
+
+  const handleApplySinglePool = (proxyPoolId) => {
+    const targets = connections.map((c) => ({ connectionId: c.id, proxyPoolId }));
+    return applyProxyAssignments(targets);
+  };
+
+  const handleApplyOneToOne = () => {
+    const activePools = proxyPools.filter((p) => p.isActive === true);
+    if (activePools.length === 0) {
+      alert("No active proxy pools available.");
+      return;
+    }
+    const targets = connections.map((c, i) => ({
+      connectionId: c.id,
+      proxyPoolId: activePools[i % activePools.length].id,
+    }));
+    return applyProxyAssignments(targets);
+  };
+
+  const handleTestModel = async (modelId) => {
+    if (testingModelIds.has(modelId)) return;
+    setTestingModelIds((prev) => new Set(prev).add(modelId));
+    try {
+      const res = await fetch("/api/models/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
+      });
+      const data = await res.json();
+      setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
+      setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
+    } catch {
+      setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+      setModelsTestError("Network error");
+    } finally {
+      setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-8">
+        <CardSkeleton />
+        <CardSkeleton />
+      </div>
+    );
+}
+
+  if (!providerInfo) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-text-muted">Provider not found</p>
+        <Link href="/dashboard/providers" className="text-primary mt-4 inline-block">
+          Back to Providers
+        </Link>
+      </div>
+    );
+  }
+
+  // Determine icon path: OpenAI Compatible providers use specialized icons
+  const getHeaderIconPath = () => {
+    if (isOpenAICompatible && providerInfo.apiType) {
+      return providerInfo.apiType === "responses" ? "/providers/oai-r.png" : "/providers/oai-cc.png";
+    }
+    if (isAnthropicCompatible) {
+      return "/providers/anthropic-m.png";
+    }
+    return getProviderIconSrc(providerInfo.id);
+  };
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-0">
+      {/* Header */}
+      <div className="min-w-0">
+        <Link
+          href="/dashboard/providers"
+          className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors mb-4"
+        >
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          Back to Providers
+        </Link>
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div
+            className="flex size-12 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `${providerInfo.color}15` }}
+          >
+            {headerImgError || !getHeaderIconPath() ? (
+              <span className="text-sm font-bold" style={{ color: providerInfo.color }}>
+                {providerInfo.textIcon || providerInfo.id.slice(0, 2).toUpperCase()}
+              </span>
+            ) : (
+              <Image
+                src={getHeaderIconPath()}
+                alt={providerInfo.name}
+                width={48}
+                height={48}
+                className="max-h-12 max-w-12 rounded-lg object-contain"
+                sizes="48px"
+                onError={() => {
+                  markProviderIconMissing(providerInfo.id);
+                  setHeaderImgError(true);
+                }}
+              loading="lazy"
+              decoding="async"
+              />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{providerInfo.name}</h1>
+              {(providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website) && (
+                <a
+                  href={providerInfo.notice?.apiKeyUrl || providerInfo.notice?.signupUrl || providerInfo.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">open_in_new</span>
+                  {providerInfo.notice?.apiKeyUrl ? "Get API Key" : "Sign up / Learn more"}
+                </a>
+              )}
+            </div>
+            <p className="text-text-muted">
+              {connections.length} connection{connections.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {providerInfo.deprecated && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+          <span className="material-symbols-outlined text-[16px] text-yellow-500 mt-0.5 shrink-0">warning</span>
+          <p className="text-xs text-red-600 dark:text-yellow-400 leading-relaxed">{providerInfo.deprecationNotice}</p>
+        </div>
+      )}
+
+      {providerInfo.notice?.text && !providerInfo.deprecated && (
+        <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
+          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{providerInfo.notice.text}</p>
+          {providerInfo.notice.apiKeyUrl && (
+            <a
+              href={providerInfo.notice.apiKeyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex justify-center rounded bg-blue-500 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-600 sm:py-0.5"
+            >
+              Get API Key →
+            </a>
+          )}
+        </div>
+      )}
+
+      {isCompatible && providerNode && (
+        <Card>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold">{isAnthropicCompatible ? "Anthropic Compatible Details" : "OpenAI Compatible Details"}</h2>
+              <p className="break-all text-sm text-text-muted">
+                {isAnthropicCompatible ? "Messages API" : (providerNode.apiType === "responses" ? "Responses API" : "Chat Completions")} · {(providerNode.baseUrl || "").replace(/\/$/, "")}/
+                {isAnthropicCompatible ? "messages" : (providerNode.apiType === "responses" ? "responses" : "chat/completions")}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
+              <Button
+                size="sm"
+                icon="add"
+                onClick={() => {
+                  setAddConnectionError("");
+                  setShowAddApiKeyModal(true);
+                }}
+                className="w-full sm:w-auto"
+              >
+                Add API Key
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="edit"
+                onClick={() => setShowEditNodeModal(true)}
+                className="w-full sm:w-auto"
+              >
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="delete"
+                onClick={async () => {
+                  setConfirmState({
+                    title: "Delete Compatible Node",
+                    message: `Delete this ${isAnthropicCompatible ? "Anthropic" : "OpenAI"} Compatible node?`,
+                    onConfirm: async () => {
+                      setConfirmState(null);
+                      try {
+                        const res = await fetch(`/api/provider-nodes/${providerId}`, { method: "DELETE" });
+                        if (res.ok) {
+                          router.push("/dashboard/providers");
+                        }
+                      } catch (error) {
+                        console.log("Error deleting provider node:", error);
+                      }
+                    }
+                  });
+                }}
+                className="w-full sm:w-auto"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Connections */}
+      <ConnectionsSection
+        providerId={providerId}
+        connections={connections}
+        proxyPools={proxyPools}
+        isFreeNoAuth={isFreeNoAuth}
+        isOAuth={isOAuth}
+        isCompatible={isCompatible}
+        hasDualAuthModes={hasDualAuthModes}
+        oauthConnectionLabel={oauthConnectionLabel}
+        apiKeyConnectionLabel={apiKeyConnectionLabel}
+        selectedConnectionIds={selectedConnectionIds}
+        allSelected={allSelected}
+        autoPing={autoPing}
+        autoPingSettingsKey={AUTO_PING_SETTINGS_KEYS[providerId]}
+        oneByOneRunning={oneByOneRunning}
+        oneByOneStopping={oneByOneStopping}
+        oneByOneCurrentConnectionId={oneByOneCurrentConnectionId}
+        oneByOneSummary={oneByOneSummary}
+        oneByOneResults={oneByOneResults}
+        providerStrategy={providerStrategy}
+        providerStickyLimit={providerStickyLimit}
+        onToggleSelectConnection={toggleSelectConnection}
+        onToggleSelectAllConnections={toggleSelectAllConnections}
+        onSwapPriority={handleSwapPriority}
+        onUpdateConnectionStatus={handleUpdateConnectionStatus}
+        onDeleteConnection={handleDelete}
+        onSetConnections={setConnections}
+        onSelectConnection={setSelectedConnection}
+        onShowEditModal={setShowEditModal}
+        onScheduleConnection={setScheduleConnection}
+        onRoundRobinToggle={handleRoundRobinToggle}
+        onStickyLimitChange={handleStickyLimitChange}
+        onBulkDelete={handleBulkDelete}
+        onRunOneByOneTest={handleRunOneByOneTest}
+        onStopOneByOneTest={handleStopOneByOneTest}
+        onShowBulkProxyModal={setShowBulkProxyModal}
+        onOAuthConnection={triggerOAuthConnection}
+        onApiKeyConnection={triggerApiKeyConnection}
+        onAddConnection={triggerAddConnection}
+        onConnected={fetchConnections}
+        onShowIFlowCookieModal={setShowIFlowCookieModal}
+        onShowBulkImportCodex={setShowBulkImportCodex}
+        onShowBulkImportGrokCli={setShowBulkImportGrokCli}
+      />
+
+      {/* Per-provider user overrides (custom headers / connect timeout) */}
+      <CustomConfigCard providerId={providerId} />
+
+      {/* Models */}
+      <ModelsSection
+        isCompatible={isCompatible}
+        isAnthropic={isAnthropicCompatible}
+        isFreeNoAuth={isFreeNoAuth}
+        providerId={providerId}
+        providerStorageAlias={providerStorageAlias}
+        providerDisplayAlias={providerDisplayAlias}
+        connections={connections}
+        models={models}
+        kiloFreeModels={kiloFreeModels}
+        customModels={customModels}
+        modelAliases={modelAliases}
+        disabledModelIds={disabledModelIds}
+        suggestedModels={suggestedModels}
+        modelTestResults={modelTestResults}
+        testingModelIds={testingModelIds}
+        copied={copied}
+        copy={copy}
+        getCaps={getCaps}
+        thinkingMode={thinkingMode}
+        modelsTestError={modelsTestError}
+        liveModelsError={liveModelsError}
+        onSetAlias={handleSetAlias}
+        onDeleteAlias={handleDeleteAlias}
+        onAddCustomModel={handleAddCustomModel}
+        onDeleteCustomModel={handleDeleteCustomModel}
+        onTestModel={handleTestModel}
+        onDisableModel={handleDisableModel}
+        onEnableModel={handleEnableModel}
+        onEnableAll={handleEnableAll}
+        onDisableAll={handleDisableAll}
+        onThinkingModeChange={handleThinkingModeChange}
+        onShowAddCustomModel={setShowAddCustomModel}
+        importingQoderModels={importingQoderModels}
+        importingClineModels={importingClineModels}
+        onImportQoderModels={handleImportQoderModels}
+        onImportClineModels={handleImportClineModels}
+      />
+
+      <ProviderModals
+        providerId={providerId}
+        providerInfo={providerInfo}
+        isCompatible={isCompatible}
+        isAnthropicCompatible={isAnthropicCompatible}
+        connections={connections}
+        proxyPools={proxyPools}
+        selectedConnection={selectedConnection}
+        providerNode={providerNode}
+        providerStorageAlias={providerStorageAlias}
+        providerDisplayAlias={providerDisplayAlias}
+        addConnectionError={addConnectionError}
+        autoPing={autoPing}
+        scheduleConnection={scheduleConnection}
+        confirmState={confirmState}
+        showBulkProxyModal={showBulkProxyModal}
+        bulkUpdatingProxy={bulkUpdatingProxy}
+        showOAuthModal={showOAuthModal}
+        showXiaomiMimoModal={showXiaomiMimoModal}
+        showIFlowCookieModal={showIFlowCookieModal}
+        showAddApiKeyModal={showAddApiKeyModal}
+        showEditModal={showEditModal}
+        showEditNodeModal={showEditNodeModal}
+        showAddCustomModel={showAddCustomModel}
+        showBulkImportCodex={showBulkImportCodex}
+        showBulkImportGrokCli={showBulkImportGrokCli}
+        showAgRiskModal={showAgRiskModal}
+        onCloseBulkProxyModal={closeBulkProxyModal}
+        onApplyOneToOne={handleApplyOneToOne}
+        onApplySinglePool={handleApplySinglePool}
+        onOAuthSuccess={handleOAuthSuccess}
+        onSetOAuthModal={setShowOAuthModal}
+        onSetXiaomiMimoModal={setShowXiaomiMimoModal}
+        onIFlowCookieSuccess={handleIFlowCookieSuccess}
+        onSetIFlowCookieModal={setShowIFlowCookieModal}
+        onSaveApiKey={handleSaveApiKey}
+        onBulkDone={fetchConnections}
+        onSetAddApiKeyModal={setShowAddApiKeyModal}
+        onSetAddConnectionError={setAddConnectionError}
+        onUpdateConnection={handleUpdateConnection}
+        onSetEditModal={setShowEditModal}
+        onUpdateNode={handleUpdateNode}
+        onSetEditNodeModal={setShowEditNodeModal}
+        onAddCustomModel={handleAddCustomModel}
+        onSetAddCustomModel={setShowAddCustomModel}
+        onSetBulkImportCodex={setShowBulkImportCodex}
+        onSetBulkImportGrokCli={setShowBulkImportGrokCli}
+        onSetScheduleConnection={setScheduleConnection}
+        onSaveAutoPing={handleSaveAutoPing}
+        onSetAgRiskModal={setShowAgRiskModal}
+        onAgRiskConfirm={handleAgRiskConfirm}
+        onSetConfirmState={setConfirmState}
+      />
+    </div>
+  );
+}
