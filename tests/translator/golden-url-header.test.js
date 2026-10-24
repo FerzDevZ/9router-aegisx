@@ -35,6 +35,9 @@ function sanitize(headers) {
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          // Node-version-bearing headers (X-PLATFORM-VERSION & friends) must not
+          // pin the snapshot to the generating machine's node.
+          .split(process.version).join("<NODE>")
       : v;
   }
   return out;

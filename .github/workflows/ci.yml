@@ -44,6 +44,8 @@ jobs:
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
       - name: Install test deps
         run: npm --prefix tests install --no-audit --no-fund
+      - name: Install test binaries (ffmpeg for codex STT conversion tests)
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
       - name: Run unit suite
         working-directory: tests
         run: node_modules/.bin/vitest run
