@@ -11,6 +11,7 @@ function isLLMProvider(id) {
   return p.serviceKinds.includes("llm");
 }
 import Badge from "./Badge";
+import Button from "./Button";
 import Card from "./Card";
 import OverviewCards from "@/app/(dashboard)/dashboard/usage/components/OverviewCards";
 import UsageTable, { fmt, fmtTime } from "@/app/(dashboard)/dashboard/usage/components/UsageTable";
@@ -214,6 +215,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [tableView, setTableView] = useState("model");
   const [viewMode, setViewMode] = useState("costs");
   const [providers, setProviders] = useState([]);
@@ -256,8 +258,8 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .catch(() => {});
   }, []);
 
-  // Fetch filtered stats via REST when period changes
-  useEffect(() => {
+  // Fetch filtered stats via REST (period changes + manual retry)
+  const loadStats = useCallback(() => {
     // First load: show full spinner; subsequent: show subtle fetching indicator
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
@@ -271,15 +273,24 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
       .then((data) => {
         if (data) {
           hasLoadedStats.current = true;
+          setLoadError(false);
           setStats((prev) => ({ ...prev, ...data }));
+        } else if (!hasLoadedStats.current) {
+          setLoadError(true);
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!hasLoadedStats.current) setLoadError(true);
+      })
       .finally(() => {
         setLoading(false);
         setFetching(false);
       });
   }, [period]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   // SSE connection - real-time updates for activeRequests + recentRequests only
   useEffect(() => {
@@ -438,7 +449,27 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
     }
   }, [stats, tableView, sortBy, sortOrder]);
 
-  if (!stats && !loading) return <div className="text-text-muted">Failed to load usage statistics.</div>;
+  if (!stats && !loading) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-6 py-12 text-center"
+      >
+        <span className="material-symbols-outlined text-[32px] text-red-500">cloud_off</span>
+        <p className="text-sm font-medium text-text-main">Failed to load usage statistics</p>
+        <p className="text-xs text-text-muted">
+          The server didn&apos;t respond. Check that 9router is running, then try again.
+        </p>
+        <Button
+          icon="refresh"
+          onClick={() => { setLoading(true); loadStats(); }}
+          className="mt-2"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   const spinner = (
     <div className="flex items-center justify-center py-12 text-text-muted">

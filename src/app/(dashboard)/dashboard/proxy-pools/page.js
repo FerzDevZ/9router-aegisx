@@ -30,6 +30,7 @@ function normalizeFormData(data = {}) {
 export default function ProxyPoolsPage() {
   const [proxyPools, setProxyPools] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [showBatchImportModal, setShowBatchImportModal] = useState(false);
   const [showVercelModal, setShowVercelModal] = useState(false);
@@ -70,13 +71,17 @@ export default function ProxyPoolsPage() {
 
   const fetchProxyPools = useCallback(async () => {
     try {
+      setLoadError(false);
       const res = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
       const data = await res.json();
       if (res.ok) {
         setProxyPools(data.proxyPools || []);
+      } else {
+        setLoadError(true);
       }
     } catch (error) {
       console.log("Error fetching proxy pools:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -605,6 +610,24 @@ export default function ProxyPoolsPage() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
         <CardSkeleton />
         <CardSkeleton />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto flex w-full max-w-5xl flex-col items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-6 py-12 text-center"
+      >
+        <span className="material-symbols-outlined text-[32px] text-red-500">cloud_off</span>
+        <p className="text-sm font-medium text-text-main">Failed to load proxy pools</p>
+        <p className="text-xs text-text-muted">
+          The server didn&apos;t respond. Check that 9router is running, then try again.
+        </p>
+        <Button icon="refresh" onClick={() => { setLoading(true); fetchProxyPools(); }} className="mt-2">
+          Retry
+        </Button>
       </div>
     );
   }

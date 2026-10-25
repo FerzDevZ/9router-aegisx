@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Button from "@/shared/components/Button";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import QuotaTable from "./QuotaTable";
 import ResetCreditsModal from "./ResetCreditsModal";
@@ -67,6 +68,7 @@ export default function ProviderLimits() {
   const [quotaData, setQuotaData] = useState({});
   const [loading, setLoading] = useState({});
   const [errors, setErrors] = useState({});
+  const [connectionsError, setConnectionsError] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [autoPingConfigs, setAutoPingConfigs] = useState({ claude: {}, codex: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
@@ -133,6 +135,7 @@ export default function ProviderLimits() {
   const fetchConnections = useCallback(
     async (targetPage = page) => {
       try {
+        setConnectionsError(false);
         const params = new URLSearchParams({
           page: String(targetPage),
           pageSize: String(pageSize),
@@ -162,6 +165,7 @@ export default function ProviderLimits() {
         return connectionList;
       } catch (error) {
         console.error("Error fetching connections:", error);
+        setConnectionsError(true);
         setConnections([]);
         setProviderOptions([]);
         setPagination({ page: 1, pageSize, total: 0, totalPages: 1 });
@@ -758,6 +762,29 @@ export default function ProviderLimits() {
   const pageSizeLabel = getPageSizeLabel(pageSize, isCustomPageSize);
 
   if (!connectionsLoading && !hasEligibleConnections) {
+    if (connectionsError) {
+      return (
+        <Card padding="lg">
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-2 rounded-xl py-8 text-center"
+          >
+            <span className="material-symbols-outlined text-[32px] text-red-500">cloud_off</span>
+            <h3 className="text-lg font-semibold text-text-primary">Failed to load connections</h3>
+            <p className="max-w-md text-sm text-text-muted">
+              The server didn&apos;t respond. Check that 9router is running, then try again.
+            </p>
+            <Button
+              icon="refresh"
+              onClick={() => { fetchConnections(); }}
+              className="mt-2"
+            >
+              Retry
+            </Button>
+          </div>
+        </Card>
+      );
+    }
     return (
       <Card padding="lg">
         <div className="text-center py-12">
