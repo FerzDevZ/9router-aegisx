@@ -66,12 +66,7 @@ describe("connect helpers", () => {
   });
 });
 
-// The full `connect run()` writer flow depends on the host environment
-// (crush's config bootstrap doesn't complete on a pristine ubuntu-latest
-// runner even though it passes on dev machines). Run locally; skip on CI
-// until the runner-specific cause is isolated.
-const connectWriters = process.env.CI_RUNNER === "github" ? describe.skip : describe;
-connectWriters("connect tool writers", () => {
+describe("connect tool writers", () => {
   let home;
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), "9r-connect-"));
@@ -194,15 +189,20 @@ connectWriters("connect tool writers", () => {
   });
 });
 
-connectWriters("connect run()", () => {
+describe("connect run()", () => {
   let home;
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), "9r-connect-run-"));
     vi.spyOn(os, "homedir").mockReturnValue(home);
+    // CI runners pre-set XDG_CONFIG_HOME (/home/runner/.config); without this
+    // stub, crush's config would be written to the REAL runner home while the
+    // assertions look in the tempdir (and the sandbox leaks a file).
+    vi.stubEnv("XDG_CONFIG_HOME", "");
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     fs.rmSync(home, { recursive: true, force: true });
   });
 
