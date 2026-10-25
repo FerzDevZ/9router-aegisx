@@ -12,6 +12,7 @@ import { LOCALE_FLAGS } from "@/shared/constants/locales";
 import SecurityCard from "./sections/SecurityCard";
 import NetworkCard from "./sections/NetworkCard";
 import ObservabilityCard from "./sections/ObservabilityCard";
+import BackupCard from "./sections/BackupCard";
 import SamlPanel from "./sections/SamlPanel";
 import OidcPanel from "./sections/OidcPanel";
 
@@ -1072,6 +1073,9 @@ export default function ProfilePage() {
 
         {/* Observability Settings */}
         <ObservabilityCard settings={settings} loading={loading} onSettingsChange={setSettings} />
+
+        {/* Scheduled Backups */}
+        <BackupCard settings={settings} loading={loading} onSettingsChange={setSettings} />
 
         {/* Account actions */}
         <div className="flex flex-col sm:flex-row gap-2">
