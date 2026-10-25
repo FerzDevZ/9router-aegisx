@@ -161,6 +161,7 @@ function groupDataByKey(data, keyField) {
 const MODEL_COLUMNS = [
   { field: "rawModel", label: "Model" },
   { field: "provider", label: "Provider" },
+  { field: "cacheHit", label: "Cache Hit", align: "right" },
   { field: "requests", label: "Requests", align: "right" },
   { field: "lastUsed", label: "Last Used", align: "right" },
 ];
@@ -343,13 +344,28 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
           groupedData: groupDataByKey(sortData(stats.byModel, pendingMap, sortBy, sortOrder), "rawModel"),
           storageKey: "usage-stats:expanded-models",
           emptyMessage: "No usage recorded yet.",
-          renderSummaryCells: (group) => (
-            <>
-              <td className="px-6 py-3 text-text-muted">—</td>
-              <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
-              <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
-            </>
-          ),
+          renderSummaryCells: (group) => {
+            const prompt = group.summary.promptTokens || 0;
+            const cached = group.summary.cachedTokens || 0;
+            const hitPct = prompt > 0 ? Math.round((cached / prompt) * 100) : null;
+            return (
+              <>
+                <td className="px-6 py-3 text-text-muted">—</td>
+                <td
+                  className="px-6 py-3 text-right tabular-nums"
+                  title={hitPct === null ? "No input tokens recorded" : `${fmt(cached)} of ${fmt(prompt)} input tokens served from provider prompt caches`}
+                >
+                  {hitPct === null ? <span className="text-text-muted">—</span> : (
+                    <span className={hitPct >= 50 ? "font-medium text-primary" : hitPct > 0 ? "text-text-main" : "text-text-muted"}>
+                      {hitPct}%
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-3 text-right">{fmt(group.summary.requests)}</td>
+                <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">{fmtTime(group.summary.lastUsed)}</td>
+              </>
+            );
+          },
           renderDetailCells: (item) => (
             <>
               <td className={`px-6 py-3 font-medium transition-colors ${item.pending > 0 ? "text-primary" : ""}`}>{item.rawModel}</td>
