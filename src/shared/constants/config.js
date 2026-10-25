@@ -7,17 +7,25 @@ export const APP_CONFIG = {
   version: pkg.version,
 };
 
-// GitHub configuration
+// GitHub configuration — this fork's repo is the source of truth for
+// changelog + releases (upstream links would send users to decolua/9router).
 export const GITHUB_CONFIG = {
-  changelogUrl: "https://raw.githubusercontent.com/decolua/9router/refs/heads/master/CHANGELOG.md",
+  repoUrl: "https://github.com/FerzDevZ/9router-aegisx",
+  changelogUrl: "https://raw.githubusercontent.com/FerzDevZ/9router-aegisx/main/CHANGELOG.md",
+  releasesUrl: "https://github.com/FerzDevZ/9router-aegisx/releases",
   donateUrl: "https://9router.com/api/donate",
 };
 
-// Updater configuration
+// Updater configuration.
+// AegisX update channel is GitHub Releases of the fork — it is NOT on npm.
+// `npm i -g 9router@latest` would install the UPSTREAM package and silently
+// replace this fork (wiping its hardening), so the update flow must never
+// run npm. The manual-update command is the source-install refresh.
 export const UPDATER_CONFIG = {
-  npmPackageName: "9router",
-  installCmd: "npm i -g 9router",
-  installCmdLatest: "npm i -g 9router@latest --prefer-online",
+  updateChannel: "github-releases",
+  npmPackageName: "9router-aegisx",
+  installCmd: "git pull && npm install && npm run build",
+  installCmdLatest: "cd ~/9router-aegisx && git pull && npm install && npm run build",
   shutdownCountdownSec: 3,
   exitDelayMs: 500,
   statusPort: 20129,
