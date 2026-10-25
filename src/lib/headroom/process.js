@@ -200,6 +200,22 @@ export async function installHeadroomExtras(extras = []) {
         const status = getInstalledHeadroomExtras(py);
         resolve({ success: true, code, spec, extras: requested, ...status });
       } else {
+        // uv- and OS-managed Pythons (PEP 668) refuse direct pip installs with
+        // "externally-managed-environment". Surface the exact escape hatch
+        // instead of a bare exit code — the dashboard shows this verbatim.
+        const tail = getInstallLogTail(20);
+        if (/externally-managed-environment|This environment is externally managed/i.test(tail)) {
+          const e = new Error(
+            "Python refused the install: this interpreter is externally managed (PEP 668 — uv or OS-managed Python). " +
+            "Install the extras into a dedicated environment instead: " +
+            'uv venv --seed --python 3.12 ~/.9router/headroom/venv && ' +
+            'uv pip install --python ~/.9router/headroom/venv/bin/python "headroom-ai[proxy,code,ml]", ' +
+            "then make ~/.local/bin/headroom point at ~/.9router/headroom/venv/bin/headroom.",
+          );
+          e.code = "PEP668";
+          reject(e);
+          return;
+        }
         const err = new Error(`pip install exited with code=${code} — see headroom/install.log`);
         err.code = "INSTALL_FAILED";
         reject(err);
