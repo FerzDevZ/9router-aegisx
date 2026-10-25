@@ -1,52 +1,48 @@
-# Unreleased
+# v0.5.110-aegisx.1 (2026-10-25)
 
-## Security
-- **Usage stats**: `byApiKey` response keys no longer carry raw API keys — buckets use the key's registered id (or a deterministic hash for unknown keys), fixing an AUDIT-002 regression while keeping same-masked-prefix team keys in separate buckets
-- **Dashboard guard**: the four serverless relay deploy routes (`netlify/vercel/cloudflare/deno-deploy`), which receive third-party platform tokens, are now ALWAYS_PROTECTED (require auth even with `requireLogin=false`); proxy-pool rows show an "unsealed" badge for relays deployed before the shared-secret update
-- **OAuth**: local callback proxies for Codex and xAI now reject cross-origin requests (`isLoopbackOrigin` guard, matching trae/windsurf/zed)
-
-## Tests
-- **Full unit suite is green again locally and now runs in CI** (new `unit-tests` job): the ~100-suite `@/`//`open-sse/…` resolution failure class is gone, all known-fails repaired against current intended behavior (combo 400 request-scoped advance + identity fast-path restored in `reorderByCapabilities`, cursor auto-import rewritten to the staged-extraction design, codebuddy backoff, headroom #2132/#4070 contract, openai→claude buffered tool args, translator content-array collapse rules, opencode session forwarding covers the thinking-downgrade retry), golden header snapshots refreshed, obsolete cloud-adapter test removed, `lowdb` dev-dep for the db benchmark, and the MiMo live test is properly gated behind `RUN_LIVE=1`
-
-## UI/UX
-- **Usage**: "Cache Hit Rate" overview card — cached share of the period's input tokens
-- **Endpoint page**: failed keys fetch renders an error state with Retry instead of an empty list
-- **Combos page**: raw `alert()` calls replaced with the toast notification system
-- **Dashboard**: Header no longer remounts on every navigation (`key={pathname}` removed)
-- **Providers/Combos pages**: initial-fetch failures now render an error state with a Retry button instead of a misleading "no providers/combos" empty state; mutation refetches don't flash the full-page skeleton
-- **Accessibility**: 19 previously unnamed dashboard Toggles get aria-labels; the Toggle component now also honors a `title` prop as its accessible name; toasts are announced to screen readers (`role=alert` for errors, `role=status` otherwise)
-- **React keys**: index keys replaced with stable ones where they carried state or collided (combo model list on reorder, manual-config files, recent-requests table, chart Cells via raw model+provider, cli-tool note lists)
-- **Components**: provider detail page split 1998→1329 lines (ModelsSection/ConnectionsSection/ProviderModals); profile page 1707→1154 (SecurityCard/NetworkCard/ObservabilityCard/SamlPanel/OidcPanel); ProviderLimits 1697→1498 (pure helpers + ResetCreditsModal) — all pure extractions, JSX moved verbatim
-
-## Docs
-- **Gitbook**: new **Token Saver** page in all 5 languages (savers table, enabling, scoreboard, bypass header) + nav entry; combo strategy sections (Fallback/Round Robin/**Smart Router**/Fusion) added to vi/zh-CN/es/ja which previously documented none
-- **ARCHITECTURE.md**: full rewrite against the actual system (446 lines, every path verified) — cloud-sync sections removed, SQLite persistence, token-saver subsystem, proxy pools/relays, auth surfaces, executor fleet, env matrix and verification checklist added; known-debt list records the remaining cloud-sync vestiges
-- **README / README.zh-CN**: drop the removed Cloud Sync feature sections and CLOUD_URL variables; document the generated per-install initial password (replaces the stale `123456` claims); fix the `cd 9router/app` build path and machine-specific `/root/dev` paths
-- **Gitbook (en/vi/zh-CN/es/ja)**: replace the stale `123456` default-password claims (quick-start, installation, FAQ, deployment) with the generated-password behavior; fix `cd 9router/app` paths; repair all 70 broken relative links (nonexistent cli/models/api pages unlinked, cross-dir links repointed, link-check now passes)
-- **Landing**: remove the dead "Cloud Sync" marketing card; login page no longer claims the default password is `123456`
-- **.env.example**: drop the stale cloud-sync block and CLOUD_URL vars (BASE_URL stays, now documented for SSO callbacks)
+First AegisX release — the 2026-10-24/25 hardening and self-sufficiency round on top of 9router v0.5.109. Headlines: **the update channel is forked** (version checks + install commands now target this repo's GitHub Releases — the legacy flow compared against and installed the *upstream* npm package, which would have silently replaced the fork), **multi-arch Docker images publish to the fork's GHCR** on version tags, and the **full unit suite (4,100+ tests) runs green in CI**.
 
 ## Features
+- **Update channel (fork)**: `/api/version` compares against GitHub Releases (tag_name) instead of the upstream npm registry; `/api/version/update` refuses with actionable guidance (`FORK_CHANNEL`); the sidebar's manual-update flow copies the source-refresh command (`git pull && npm install && npm run build`) instead of `npm i -g 9router@latest`; changelog/release links point at this repo
+- **Scheduled config backups**: opt-in (`backupEnabled`) scheduler writes the exportDb() payload to `DATA_DIR/backups` with retention (`backupKeep`, default 7) and cadence (`backupIntervalHours`, poll floor 1h, settings re-read per cycle); `POST /api/settings/database/backup` = Back up now; Profile → Scheduled Backups card (toggle, interval, keep, run-now)
+- **Usage analytics**: `cacheHitRate` in stats (cached share of cache-inclusive prompt volume) + "Cache Hit Rate" overview card + per-model **Cache Hit** column with absolute counts in the tooltip
 - **Providers**: per-provider `max_tokens` body override (Custom Headers & Limits card → `/api/providers/[id]/overrides` `body.max_tokens`, integer 1–1,000,000) applied onto whichever token-limit key the target format uses (`max_completion_tokens`/`max_tokens`/`maxOutputTokens`)
-- **Usage**: `cacheHitRate` metric in usage stats — cached share of the cache-inclusive prompt volume per period
+- **CI/CD**: new `unit-tests` job (full vitest suite, cwd=tests, ffmpeg installed) and `docker-build` job (amd64, no push) on every push; **docker-ghcr.yml** publishes multi-arch (amd64+arm64 on native runners) images to `ghcr.io/ferzdevz/9router-aegisx` on `v*` tags with per-arch health smoke tests, manifest verification, and latest-promotion for non-prereleases; lockfiles are committed (setup-node caching was broken without them)
 
 ## Fixes
-- **Pricing**: `completion_tokens` is reasoning-inclusive (canonical convention) — reasoning is now billed once at its own rate instead of being double-charged at output + reasoning; nested `completion_tokens_details.reasoning_tokens` is read
-- **Usage**: cached-token aggregation now reads all three storage shapes (`cached_tokens`, `cache_read_input_tokens`, nested `prompt_tokens_details.cached_tokens`) across daily rollup, recent list, and 24h/today stats; Kiro usage extractor gains the same nested forward-compat read
-- **Combos**: fusion panel answers are capped (`panelAnswerCapChars` tuning, default 24,000 chars, 0 disables) before being fed to the judge — one runaway panel dump can no longer blow the judge's context/bill
+- **Updater safety**: the legacy in-app updater ran `npm i -g 9router@latest` — on a source-install fork that command installs *upstream* code and wipes the fork. The POST route now refuses; no code path can silently install upstream
+- **Pricing**: `completion_tokens` is reasoning-inclusive (canonical convention) — reasoning is now billed once at its own rate instead of being double-charged; nested `completion_tokens_details.reasoning_tokens` is read
+- **Usage stats**: `byApiKey` response keys no longer carry raw API keys — buckets use the key's registered id (or a deterministic hash for unknown keys), fixing an AUDIT-002 regression while keeping same-masked-prefix team keys in separate buckets; cached-token aggregation reads all three storage shapes (`cached_tokens`, `cache_read_input_tokens`, nested `prompt_tokens_details.cached_tokens`) across daily rollup, recent list, and 24h/today stats; Kiro usage extractor gains the same nested forward-compat read
+- **Combos**: fusion panel answers are capped (`panelAnswerCapChars` tuning, default 24,000 chars, 0 disables) before being fed to the judge — one runaway panel dump can no longer blow the judge's context/bill; identity fast-path restored in `reorderByCapabilities`
 - **Chat**: a 400 that names a thinking/reasoning parameter now auto-downgrades — thinking params are stripped and the request retried once before the error surfaces
 - **Tools**: MCP-equivalent built-in dedup no longer Claude-gated (strip names match literally, so unrelated tool sets are untouched)
+- **Build**: `output: "standalone"` is opt-in (`NEXT_OUTPUT_STANDALONE=1`, set in the Dockerfile) — local `npm run build && npm start` no longer trips "next start does not work with output: standalone"
+- **Headroom (uv/PEP 668 systems)**: interpreter detection resolves the headroom binary's realpath so venv-based installs are probed as their own python (status, extras install, and CLI share one environment); a PEP 668 pip failure surfaces the exact venv escape hatch instead of a bare exit code
+
+## UI/UX
+- Fetch error states with Retry across the dashboard (providers, combos, endpoint, usage, quota, proxy-pools) instead of misleading empty lists; combos' raw `alert()`s migrated to toasts; Header no longer remounts per navigation
+- Accessibility: 19 previously unnamed Toggles get aria-labels; Toggle honors `title` as an accessible name; toasts announce via `role=alert`/`role=status`; stable React keys where index keys carried state or collided
+- Components: provider detail 1998→1329 lines (ModelsSection/ConnectionsSection/ProviderModals); profile 1707→1154 (SecurityCard/NetworkCard/ObservabilityCard/BackupCard/SamlPanel/OidcPanel); ProviderLimits 1697→1498 (helpers + ResetCreditsModal) — pure extractions, JSX moved verbatim
 
 ## Security
-- **Proxy pools**: serverless relays (Netlify/Vercel/Cloudflare/Deno) now deploy with a per-deployment shared secret — the relay function rejects requests without a matching `x-relay-secret` (401), the secret is stored on the pool row and attached automatically by proxyAwareFetch and the pool test endpoint; relays deployed before this update keep working unsealed (redeploy to seal them)
-- **OAuth**: generic CSRF state binding — `/authorize` sets a short-lived `oauth_state` cookie, `/exchange` (and the Kiro social flow) rejects a state mismatch, and the OAuth modal compares popup/pasted callback state against the state it generated; non-browser clients without the cookie pass through
-- **Translator console**: mask Authorization/x-api-key/cookie values in step-3 output; `/api/translator/*` now always requires dashboard auth even when `requireLogin=false`
+- **Proxy pools**: serverless relays (Netlify/Vercel/Cloudflare/Deno) deploy with a per-deployment shared secret — the relay rejects requests without a matching `x-relay-secret` (401), strips it before forwarding, and the pool row carries it (proxyAwareFetch + test endpoint attach it automatically); relays deployed before this update show an "unsealed" badge — redeploy to seal; the four deploy routes (which receive platform API tokens) are ALWAYS_PROTECTED
+- **OAuth**: generic CSRF state binding — `/authorize` sets a short-lived `oauth_state` cookie, `/exchange` (and the Kiro social flow) rejects a state mismatch, the OAuth modal compares popup/pasted callback state; local callback proxies for Codex and xAI reject cross-origin requests (matching trae/windsurf/zed)
+- **Translator console**: mask Authorization/x-api-key/cookie values in step-3 output; `/api/translator/*` always requires dashboard auth even when `requireLogin=false`
 - **Providers API**: strip secret-bearing `providerSpecificData` keys (copilotToken, clientSecret, mimoPassToken, cookies, …) from list/detail responses
-- **Auth**: initial dashboard password is now generated per-install (printed to console, persisted in DATA_DIR) instead of the public "123456" default; INITIAL_PASSWORD env still wins; file removed once a real password is set
+- **Auth**: initial dashboard password is generated per-install (printed to console, persisted in DATA_DIR, removed once a real password is set) instead of the public "123456"; `.env.example` secrets are commented out so verbatim copies can't produce guessable credentials
 - **Chat API**: per-key/per-IP token-bucket rate limit on /v1 (settings `rateLimitPerMinute`, default 600, 0 disables)
 - **Headers**: security headers (CSP, X-Frame-Options DENY, nosniff, Referrer-Policy) via next.config; `/api/pxpipe/install` restricted to localhost
 - **Updater**: runtime updater reuse now compares full content, not file size
 - **Headroom proxy**: viewer cookies/Authorization stripped unconditionally
+
+## Tests
+- Full unit suite green and in CI: the ~100-suite `@/`//`open-sse/…` resolution failure class eliminated; every known-fail repaired against current intended behavior (combo 400 request-scoped advance, cursor auto-import staged-extraction design with dynamic import, codebuddy backoff, headroom #2132/#4070 contract, openai→claude buffered tool args, translator collapse rules, opencode session forwarding across all three dispatch sites); golden snapshots node-version- and timezone-agnostic; cli-connect's runner failure root-caused (missing XDG_CONFIG_HOME stub — also a sandbox leak) and un-skipped; MiMo live test gated behind `RUN_LIVE=1`; lint gate at 0 errors (react-hooks v6 structural rules tracked as warnings — 141 flags, migration backlog)
+
+## Docs
+- **README**: full professional rewrite (en + zh-CN, 187 lines): verified facts (port 20127 npm-scripts vs 20128 Docker, generated first-run password, provider aliases from the registry), fork provenance, wire-format endpoint table, accurate env contract; all 10 `i18n/` translations rewritten to match
+- **ARCHITECTURE.md**: rewritten against the actual system (446 lines, every path verified) — cloud-sync purged, token-saver subsystem, relay proxy pools, auth surfaces, executor fleet, env matrix, repo-relative verification checklist
+- **Gitbook**: Token Saver page in all 5 languages + nav; combo strategies (Fallback/Round Robin/Smart Router/Fusion) for vi/zh-CN/es/ja; stale `123456` password claims and `cd 9router/app` paths fixed; all 70 broken relative links repaired (link-check passes)
+- **Landing**: upstream `npx 9router` install flow replaced with the fork's source install; footer/feature links point at this repo
 
 ## Fixes
 - **Kimi**: 401 refresh now goes through the deduped refresh path — concurrent requests can no longer double-spend the single-use refresh token

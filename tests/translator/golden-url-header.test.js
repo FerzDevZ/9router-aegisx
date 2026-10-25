@@ -27,6 +27,11 @@ const SPECIALIZED = new Set([
 // UUID, minimax's timezone offset (runner TZ differs from the snapshot machine).
 const VOLATILE_HEADERS = new Set(["x-msh-device-name", "x-mavis-session-id", "x-mavis-timezone-offset"]);
 
+// Headers embed the current package version (User-Agent/X-CLIENT-VERSION/
+// X-CORE-VERSION "9Router/<version>") — normalize so snapshots survive bumps.
+import pkgJson from "../../package.json" with { type: "json" };
+const PKG_VERSION = pkgJson.version;
+
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
@@ -39,6 +44,8 @@ function sanitize(headers) {
           // Node-version-bearing headers (X-PLATFORM-VERSION & friends) must not
           // pin the snapshot to the generating machine's node.
           .split(process.version).join("<NODE>")
+          // Package-version-bearing values must not pin the snapshot to this release.
+          .split(PKG_VERSION).join("<VERSION>")
       : v;
   }
   return out;
