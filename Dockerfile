@@ -31,6 +31,8 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
+# Container runs the standalone server — opt in via next.config.mjs.
+ENV NEXT_OUTPUT_STANDALONE=1
 RUN npm run build
 
 FROM ${NODE_IMAGE} AS runner

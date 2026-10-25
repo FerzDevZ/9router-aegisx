@@ -12,7 +12,11 @@ const proxyClientMaxBodySize = process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  output: "standalone",
+  // Standalone output is only needed for the Docker image (the Dockerfile sets
+  // NEXT_OUTPUT_STANDALONE=1 before `npm run build`). A local
+  // `npm run build && npm start` uses the regular build — `next start` refuses
+  // to serve a standalone-only output ("Use node .next/standalone/server.js").
+  output: process.env.NEXT_OUTPUT_STANDALONE === "1" ? "standalone" : undefined,
   // `open` must stay external. It derives its own directory from `import.meta.url`, and
   // webpack replaces that with the absolute path of the BUILD machine as a string literal.
   // A release built on macOS therefore ships `file:///Users/.../open/index.js`, which
