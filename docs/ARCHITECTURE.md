@@ -320,7 +320,7 @@ State: zustand stores in `src/store/` (settings, providers, notifications, theme
 
 ## Deployment Topology
 
-- **Local dev**: `npm run dev` (Next dev, port 20127). **Production**: `npm run build` (`next build --webpack`, then `scripts/copy-standalone-assets.mjs`) and `npm start` → `node custom-server.js --port 20127`. Bun lanes also exist (`build:bun`, `start:bun`).
+- **Local dev**: `npm run dev` (Next dev, port 20128). **Production**: `npm run build` (`next build --webpack`, then `scripts/copy-standalone-assets.mjs`) and `npm start` → `node custom-server.js --port 20128`. Bun lanes also exist (`build:bun`, `start:bun`).
 - **custom-server.js**: wraps `http.createServer` — derives client IP from the TCP socket, strips client-supplied forwarding headers (trusting them only from loopback proxies), stamps `x-9r-real-ip` + per-process `x-9r-peer-token`, downgrades HTTP/2 cleartext upgrades (JBR 25 clients) to HTTP/1.1 replay, and starts the background token refresher on `listening`. Loads the standalone `server.js` when present, else re-executes `next start` — the wrapper applies in both cases. `NEXT_TRACING_ROOT_MODE=workspace` redirects Next file-tracing to the monorepo root for CLI bundling; `serverExternalPackages` keeps better-sqlite3, sql.js, open, @aws-sdk/credential-providers, and wreq-js external (native/runtime path requirements).
 - **Docker** (`Dockerfile`): multi-stage on `node:22.23.4-alpine`; runner copies the standalone build plus `open-sse/`, `src/mitm/` (MITM child process), and runtime-critical node_modules (sql.js WASM binary, node-machine-id, node-forge, next); runs as non-root via `su-exec` entrypoint; ships `ffmpeg` (media); `DATA_DIR=/app/data`, `PORT=20128`; `HEALTHCHECK` polls `/api/health` every 30s (5s timeout, 20s start period, 3 retries). `start.sh` = local stop/rm/build/run with the `9router-data` volume. `docker-compose.yml` adds the optional headroom sidecar and sets `HEADROOM_URL`. Build args support regional Alpine mirrors and npm registry overrides (`ALPINE_MIRROR`, `NPM_REGISTRY`).
 
@@ -328,7 +328,7 @@ State: zustand stores in `src/store/` (settings, providers, notifications, theme
 
 | Port | Use |
 |---|---|
-| 20127 | dev server (`npm run dev`, `npm start` default) |
+| 20128 | app server (`npm run dev`, `npm start`) |
 | 20128 | Docker/published port (`PORT` env; docker-compose maps `20128:20128`) |
 | 8787 | optional Headroom sidecar (bound to `127.0.0.1` in compose) |
 | 443 (local) | MITM proxy listener (`src/mitm/server.js`) when aliasing is enabled |
@@ -361,7 +361,7 @@ Verified as actually read by code:
 | `JWT_SECRET` | `src/lib/auth/dashboardSession.js` | auto-generated to `DATA_DIR/jwt-secret` if unset |
 | `INITIAL_PASSWORD` | `src/lib/auth/dashboardSession.js` | overrides the generated initial dashboard password |
 | `DATA_DIR` | `src/lib/dataDir.js` | default `~/.9router` / `%APPDATA%\9router`; Docker `/app/data` |
-| `PORT` | Dockerfile env, `src/lib/appUpdater.js`, `src/app/api/models/test/ping.js` | dev 20127, Docker 20128 |
+| `PORT` | Dockerfile env, `src/lib/appUpdater.js`, `src/app/api/models/test/ping.js` | scripts and Docker both default to 20128 |
 | `NODE_ENV` | runtime | `production` in Docker |
 | `API_KEY_SECRET` | `src/shared/utils/apiKey.js` | endpoint API-key derivation |
 | `MACHINE_ID_SALT` | `src/shared/utils/machineId.js` | machine-ID hashing salt (CLI token derivation) |
@@ -435,9 +435,9 @@ Repo-relative; run from the checkout root.
 5. `grep -n "data.sqlite" src/lib/db/paths.js` — DB path is `${DATA_DIR}/db/data.sqlite`.
 6. `test -f src/lib/db/adapters/bunSqliteAdapter.js -a -f src/lib/db/adapters/betterSqliteAdapter.js -a -f src/lib/db/adapters/nodeSqliteAdapter.js -a -f src/lib/db/adapters/sqljsAdapter.js` — adapter chain complete.
 7. `grep -n "getInitialPassword" src/lib/auth/dashboardSession.js` — generated-password flow present (no shipped default credential).
-8. `npm run build && node custom-server.js --port 20127` then `curl -s http://localhost:20127/api/health` → `{"ok":true}`.
-9. `curl -s http://localhost:20127/v1/models` — rewrite path resolves (auth per settings; expect model list or 401, not 404).
-10. `curl -s http://localhost:20127/api/usage/savers` — saver scoreboard responds (auth-gated per settings).
+8. `npm run build && node custom-server.js --port 20128` then `curl -s http://localhost:20128/api/health` → `{"ok":true}`.
+9. `curl -s http://localhost:20128/v1/models` — rewrite path resolves (auth per settings; expect model list or 401, not 404).
+10. `curl -s http://localhost:20128/api/usage/savers` — saver scoreboard responds (auth-gated per settings).
 11. `grep -n "cacheHitRate" src/lib/db/repos/usageRepo.js` — metric implemented.
 12. `docker compose config` — compose file valid; `docker build -t 9router .` reproduces the image (HEALTHCHECK included).
 13. `node tests/__baseline__/verify-providers.mjs && node tests/__baseline__/verify-alias.mjs && node tests/__baseline__/verify-oauth-urls.mjs` — registry baselines match.

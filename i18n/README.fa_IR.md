@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # serves http://localhost:20128
+npm start    # serves http://localhost:20128
 ```
 
-> اسکریپت‌های npm به‌طور پیش‌فرض از پورت **20127** استفاده می‌کنند؛ Docker و تمام مثال‌های این README از **20128** استفاده می‌کنند — مطابق بالا `-- --port 20128` را اضافه کنید (یا پورت خودتان را تعیین کنید).
 
 **Docker (ساخت از سورس):**
 
@@ -141,7 +140,7 @@ node scripts/enable-token-savers.mjs --revert
 | متغیر | پیش‌فرض | کاربرد |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | پایگاه‌داده، نصب‌های runtime، secret ها |
-| `PORT` | `20127` (اسکریپت‌های npm) / `20128` (Docker) | پورت شنیداری — اسکریپت‌های npm `--port` صریح می‌گذراند؛ Docker به این env متکی است |
+| `PORT` | `20128` (Docker) | پورت شنیداری — اسکریپت‌های npm `--port` صریح می‌گذراند؛ Docker به این env متکی است |
 | `INITIAL_PASSWORD` | *(تولیدشده)* | جایگزینی رمز تصادفی اولین اجرا |
 | `JWT_SECRET` | *(تولیدشده)* | امضای نشست داشبورد (برای اشتراک بین نمونه‌ها تنظیم کنید) |
 | `API_KEY_SECRET` | *(تولیدشده)* | HMAC برای checksum کلید API — به ازای هر نصب تنظیم کنید |

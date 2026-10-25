@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # ให้บริการที่ http://localhost:20128
+npm start    # ให้บริการที่ http://localhost:20128
 ```
 
-> script ของ npm ใช้พอร์ต **20127** เป็นค่าเริ่มต้น ส่วน Docker และทุกตัวอย่างใน README นี้ใช้ **20128** — ส่ง `-- --port 20128` (หรือระบุพอร์ตของคุณเอง) ตามที่แสดงด้านบน
 
 **Docker (build จากซอร์ส):**
 
@@ -141,7 +140,7 @@ node scripts/enable-token-savers.mjs --revert
 | ตัวแปร | ค่าเริ่มต้น | วัตถุประสงค์ |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | ฐานข้อมูล, การติดตั้ง runtime, secret |
-| `PORT` | `20127` (script npm) / `20128` (Docker) | พอร์ตรับฟัง — script npm ส่ง `--port` แบบระบุชัด ส่วน Docker อาศัย env นี้ |
+| `PORT` | `20128` (Docker) | พอร์ตรับฟัง — script npm ส่ง `--port` แบบระบุชัด ส่วน Docker อาศัย env นี้ |
 | `INITIAL_PASSWORD` | *(สุ่มให้)* | แทนที่รหัสผ่านสุ่มของการรันครั้งแรก |
 | `JWT_SECRET` | *(สุ่มให้)* | การเซ็น session ของ dashboard (ตั้งเพื่อใช้ร่วมกันระหว่าง instance) |
 | `API_KEY_SECRET` | *(สุ่มให้)* | HMAC สำหรับ checksum ของ API key — ตั้งแยกต่อการติดตั้ง |

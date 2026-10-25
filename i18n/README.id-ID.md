@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # serves http://localhost:20128
+npm start    # serves http://localhost:20128
 ```
 
-> Skrip npm secara bawaan memakai port **20127**; Docker dan semua contoh di README ini memakai **20128** — tambahkan `-- --port 20128` (atau port Anda sendiri) seperti di atas.
 
 **Docker (build dari sumber):**
 
@@ -141,7 +140,7 @@ Data tersimpan di SQLite pada `DATA_DIR/db/data.sqlite` (bawaan `~/.9router`). V
 | Variabel | Bawaan | Kegunaan |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | Basis data, instalasi runtime, secret |
-| `PORT` | `20127` (skrip npm) / `20128` (Docker) | Port yang didengarkan — skrip npm meneruskan `--port` eksplisit; Docker mengandalkan variabel ini |
+| `PORT` | `20128` (Docker) | Port yang didengarkan — skrip npm meneruskan `--port` eksplisit; Docker mengandalkan variabel ini |
 | `INITIAL_PASSWORD` | *(dibuat otomatis)* | Menimpa sandi acak eksekusi pertama |
 | `JWT_SECRET` | *(dibuat otomatis)* | Penandatanganan sesi dashboard (atur untuk berbagi antar instance) |
 | `API_KEY_SECRET` | *(dibuat otomatis)* | HMAC untuk checksum kunci API — atur per instalasi |

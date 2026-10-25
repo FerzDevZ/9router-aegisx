@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # http://localhost:20128 で起動
+npm start    # http://localhost:20128 で起動
 ```
 
-> npm スクリプトのデフォルトポートは **20127**、Docker とこの README のすべての例は **20128** を使用します — 上記のように `-- --port 20128` を渡してください（または独自のポートを指定）。
 
 **Docker（ソースからビルド）:**
 
@@ -141,7 +140,7 @@ node scripts/enable-token-savers.mjs --revert
 | 変数 | デフォルト | 用途 |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | データベース、ランタイムインストール、シークレット |
-| `PORT` | `20127`（npm スクリプト）/ `20128`（Docker） | リッスンポート — npm スクリプトは明示的な `--port` を渡し、Docker はこの環境変数に依存 |
+| `PORT` | `20128`（Docker） | リッスンポート — npm スクリプトは明示的な `--port` を渡し、Docker はこの環境変数に依存 |
 | `INITIAL_PASSWORD` | *（生成）* | 初回実行時のランダムパスワードを上書き |
 | `JWT_SECRET` | *（生成）* | ダッシュボードセッションの署名（インスタンス間で共有する場合は設定） |
 | `API_KEY_SECRET` | *（生成）* | API キーチェックサムの HMAC — インストールごとに設定 |

@@ -85,10 +85,10 @@ export default function GetStarted() {
 
                 <div
                   className="flex items-center gap-2 mb-4 group cursor-pointer"
-                  onClick={() => handleCopy("npm start -- --port 20128")}
+                  onClick={() => handleCopy("npm start")}
                 >
                   <span className="text-green-400">$</span>
-                  <span className="text-white">npm start -- --port 20128</span>
+                  <span className="text-white">npm start</span>
                 </div>
 
                 <div className="text-gray-400 mb-6">

@@ -1,3 +1,8 @@
+# Unreleased
+
+## Fixes
+- **Ports unified to 20128**: `npm start`/`npm run dev` previously hardcoded `--port 20127` (only Docker/docs used 20128) — all npm scripts now serve 20128 and bind **localhost only**; expose on the LAN intentionally with `npm start -- --hostname 0.0.0.0`. Docker is unaffected (its CMD sets HOSTNAME=0.0.0.0). READMEs ×12, landing, sidebar update text, and ARCHITECTURE.md aligned.
+
 # v0.5.110-aegisx.1 (2026-10-25)
 
 First AegisX release — the 2026-10-24/25 hardening and self-sufficiency round on top of 9router v0.5.109. Headlines: **the update channel is forked** (version checks + install commands now target this repo's GitHub Releases — the legacy flow compared against and installed the *upstream* npm package, which would have silently replaced the fork), **multi-arch Docker images publish to the fork's GHCR** on version tags, and the **full unit suite (4,100+ tests) runs green in CI**.

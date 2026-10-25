@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # 服务运行于 http://localhost:20128
+npm start    # 服务运行于 http://localhost:20128
 ```
 
-> npm 脚本默认使用端口 **20127**；Docker 与本文所有示例统一使用 **20128** —— 按上面所示追加 `-- --port 20128`（或自行指定）。
 
 **Docker（源码构建）：**
 
@@ -141,7 +140,7 @@ node scripts/enable-token-savers.mjs --revert
 | 变量 | 默认值 | 用途 |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | 数据库、运行时安装、密钥 |
-| `PORT` | `20127`（npm 脚本）/ `20128`（Docker） | 监听端口 —— npm 脚本显式传 `--port`；Docker 依赖此环境变量 |
+| `PORT` | `20128`（Docker） | 监听端口 —— npm 脚本显式传 `--port`；Docker 依赖此环境变量 |
 | `INITIAL_PASSWORD` | *（随机生成）* | 覆盖首次运行的随机密码 |
 | `JWT_SECRET` | *（自动生成）* | 仪表盘会话签名（多实例共享时设置） |
 | `API_KEY_SECRET` | *（自动生成）* | API key 校验和的 HMAC 密钥 —— 每个安装应独立设置 |

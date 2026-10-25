@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # serves http://localhost:20128
+npm start    # serves http://localhost:20128
 ```
 
-> Os scripts npm usam por padrão a porta **20127**; o Docker e todos os exemplos deste README usam **20128** — passe `-- --port 20128` (ou a sua própria) como mostrado acima.
 
 **Docker (build a partir do código-fonte):**
 
@@ -141,7 +140,7 @@ Os dados ficam no SQLite em `DATA_DIR/db/data.sqlite` (padrão `~/.9router`). Va
 | Variável | Padrão | Finalidade |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | Banco de dados, instalações de runtime, segredos |
-| `PORT` | `20127` (scripts npm) / `20128` (Docker) | Porta de escuta — os scripts npm passam um `--port` explícito; o Docker depende desta variável |
+| `PORT` | `20128` (Docker) | Porta de escuta — os scripts npm passam um `--port` explícito; o Docker depende desta variável |
 | `INITIAL_PASSWORD` | *(gerada)* | Sobrescreve a senha aleatória da primeira execução |
 | `JWT_SECRET` | *(gerado)* | Assinatura das sessões do dashboard (defina para compartilhar entre instâncias) |
 | `API_KEY_SECRET` | *(gerado)* | HMAC para checksums de chaves de API — defina por instalação |

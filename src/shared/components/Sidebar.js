@@ -437,7 +437,7 @@ function ManualUpdatePanel({ latestVersion, installCmd, copied, onCopyAndShutdow
       <ol className="text-xs text-white/70 space-y-1 list-decimal list-inside mb-4">
         <li>Click <strong>Copy & Shutdown</strong> below.</li>
         <li>Paste the command into your terminal and press Enter.</li>
-        <li>Restart the server: <code className="px-1 rounded bg-white/10 text-green-400">npm start -- --port 20128</code>.</li>
+        <li>Restart the server: <code className="px-1 rounded bg-white/10 text-green-400">npm start</code>.</li>
       </ol>
 
       {isDisconnected ? (

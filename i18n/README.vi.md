@@ -54,10 +54,9 @@ git clone https://github.com/FerzDevZ/9router-aegisx.git
 cd 9router-aegisx
 npm install
 npm run build
-npm start -- --port 20128    # chạy tại http://localhost:20128
+npm start    # chạy tại http://localhost:20128
 ```
 
-> Các script npm mặc định dùng cổng **20127**; Docker và mọi ví dụ trong README này dùng **20128** — truyền `-- --port 20128` (hoặc cổng riêng của bạn) như trên.
 
 **Docker (build từ mã nguồn):**
 
@@ -141,7 +140,7 @@ Dữ liệu nằm trong SQLite tại `DATA_DIR/db/data.sqlite` (mặc định `~
 | Biến | Mặc định | Mục đích |
 |---|---|---|
 | `DATA_DIR` | `~/.9router` | Cơ sở dữ liệu, cài đặt runtime, secret |
-| `PORT` | `20127` (script npm) / `20128` (Docker) | Cổng lắng nghe — script npm truyền `--port` rõ ràng; Docker dựa vào biến môi trường này |
+| `PORT` | `20128` (Docker) | Cổng lắng nghe — script npm truyền `--port` rõ ràng; Docker dựa vào biến môi trường này |
 | `INITIAL_PASSWORD` | *(sinh tự động)* | Ghi đè mật khẩu ngẫu nhiên lần chạy đầu |
 | `JWT_SECRET` | *(sinh tự động)* | Ký phiên dashboard (đặt để dùng chung giữa các instance) |
 | `API_KEY_SECRET` | *(sinh tự động)* | HMAC cho checksum API-key — đặt riêng cho mỗi bản cài |
