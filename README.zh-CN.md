@@ -2,17 +2,17 @@
 <div align="center">
   <img src="./images/9router.png?1" alt="9Router Dashboard" width="800"/>
   
-  # 9Router - 免费 AI 路由器与 Token 节省器
+  # 9Router AegisX — 免费 AI 路由器与 Token 节省器
   
   **编程永不停歇。使用 RTK + 自动切换到免费/低价 AI 模型，节省 20-40% 的 tokens。**
   
   **将所有 AI 编程工具（Claude Code、Cursor、Antigravity、Copilot、Codex、Gemini、OpenCode、Cline、OpenClaw...）连接到 40+ AI 提供商和 100+ 模型。**
   
-  [![npm](https://img.shields.io/npm/v/9router.svg)](https://www.npmjs.com/package/9router)
-  [![Downloads](https://img.shields.io/npm/dm/9router.svg)](https://www.npmjs.com/package/9router)
-  [![License](https://img.shields.io/npm/l/9router.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+  [![CI](https://github.com/FerzDevZ/9router-aegisx/actions/workflows/ci.yml/badge.svg)](https://github.com/FerzDevZ/9router-aegisx/actions/workflows/ci.yml)
+  [![License](https://img.shields.io/badge/License-MIT-blue)](https://github.com/FerzDevZ/9router-aegisx/blob/main/LICENSE)
+  [![Base](https://img.shields.io/badge/Based%20on-9router%20v0.5.109-blueviolet)](https://github.com/decolua/9router)
 
-  <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+> **AegisX** 是由 [FerzDevZ](https://github.com/FerzDevZ) 维护的 [9router](https://github.com/decolua/9router) 加固分支 —— 包含上游全部功能，外加 2026-10-24 加固轮次：中继共享密钥门禁、OAuth CSRF state 绑定、用量统计密钥脱敏、token/推理计费修正、CI 全绿的单测套件与刷新后的文档。特别感谢上游项目。
   
   [🚀 快速开始](#-快速开始) • [💡 功能特点](#-主要功能) • [📖 设置指南](#-设置指南) • [🌐 网站](https://9router.com)
 
@@ -173,7 +173,7 @@ PORT=20128 HOSTNAME=0.0.0.0 NEXT_PUBLIC_BASE_URL=http://localhost:20128 npm run 
 
 </div>
 
-> 🎬 **制作了关于 9Router 的视频？** 提交 [Pull Request](https://github.com/decolua/9router/pulls)，将你的视频添加到此部分 — 我们会合并它！
+> 🎬 **制作了关于 9Router 的视频？** 提交 [Pull Request](https://github.com/FerzDevZ/9router-aegisx/pulls)，将你的视频添加到此部分！
 
 ---
 
@@ -1007,8 +1007,8 @@ Model：cc/claude-opus-4-7
 
 ```bash
 # 克隆并安装
-git clone https://github.com/decolua/9router.git
-cd 9router
+git clone https://github.com/FerzDevZ/9router-aegisx.git
+cd 9router-aegisx
 npm install
 npm run build
 
@@ -1249,8 +1249,9 @@ Authorization: Bearer your-api-key
 ## 📧 支持
 
 - **网站**：[9router.com](https://9router.com)
-- **GitHub**：[github.com/decolua/9router](https://github.com/decolua/9router)
-- **问题**：[github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**：[github.com/FerzDevZ/9router-aegisx](https://github.com/FerzDevZ/9router-aegisx)
+- **问题**：[github.com/FerzDevZ/9router-aegisx/issues](https://github.com/FerzDevZ/9router-aegisx/issues)
+- **上游**：[github.com/decolua/9router](https://github.com/decolua/9router)
 
 ---
 
